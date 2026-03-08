@@ -1,2 +1,24 @@
-.idea/*
+# Jetbrains IDE
+.idea/
 *.DotSettings.user
+*.sln.iml
+
+# VS IDE
+.vs/
+*.user
+*.suo
+*.rsuser
+*.sln.docstates
+
+# VS Code IDE
+.vscode/*
+*.code-workspace
+
+# Output files
+[Bb]in/
+[Oo]bj/
+
+# MAC OS
+.DS_Store
+Thumbs.db
+ehthumbs.db

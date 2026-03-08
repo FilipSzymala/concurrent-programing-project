@@ -1,4 +1,13 @@
 <Solution>
-  <Project Path="App/App.csproj" />
-  <Project Path="AppTests/AppTests.csproj" />
+  <Folder Name="/App/">
+    <Project Path="App/Data/Data.csproj" />
+    <Project Path="App/Logic/Logic.csproj" />
+    <Project Path="App/Presentation/Model/Model.csproj" />
+    <Project Path="App/Presentation/View/View.csproj" />
+    <Project Path="App/Presentation/ViewModel/ViewModel.csproj" />
+  </Folder>
+  <Folder Name="/AppTests/">
+    <Project Path="AppTests/DataTests/DataTests.csproj" />
+    <Project Path="AppTests/LogicTests/LogicTests.csproj" />
+  </Folder>
 </Solution>

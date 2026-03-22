@@ -7,5 +7,6 @@
   <Folder Name="/AppTests/">
     <Project Path="AppTests/DataTests/DataTests.csproj" />
     <Project Path="AppTests/LogicTests/LogicTests.csproj" />
+    <Project Path="AppTests/PresentationTest/PresentationTest.csproj" />
   </Folder>
 </Solution>

@@ -16,24 +16,33 @@ namespace Data
            
            for (int i = 0; i < 10; i++)
            {
+               int id = i;
+               
                int diameter = _random.Next(20, 51);
                 
                int maxX = 500 - diameter;
                int maxY = 500 - diameter;
 
-               int x = _random.Next(0, maxX + 1);
-               int y = _random.Next(0, maxY + 1);
+               double x = _random.Next(0, maxX + 1);
+               double y = _random.Next(0, maxY + 1);
                
                // we end at 200 to make it at least visible on a white background
                byte r = (byte)_random.Next(0, 200);
                byte g = (byte)_random.Next(0, 200);
                byte b = (byte)_random.Next(0, 200);
+               
+               double velocityX = (double)_random.Next(-10, 11) / 10;
+               double velocityY = (double)_random.Next(-10, 11) / 10;
+               
 
                _balls.Add(new BallEntity
                {
+                   Id = id,
                    X = x,
                    Y = y,
                    Diameter = diameter,
+                   VelocityX = velocityX,
+                   VelocityY = velocityY,
                    R = r,
                    G = g,
                    B = b

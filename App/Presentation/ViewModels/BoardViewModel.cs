@@ -30,6 +30,8 @@ public class BoardViewModel
             var ballListItem = new BallListItem();
             ballListItem.X = ball.X;
             ballListItem.Y = ball.Y;
+            ballListItem.VelocityX = ball.VelocityX;
+            ballListItem.VelocityY = ball.VelocityY;
             ballListItem.Diameter = ball.Diameter;
             ballListItem.Color = Avalonia.Media.Color.FromRgb(ball.R, ball.G, ball.B);
             
@@ -48,6 +50,8 @@ public class BoardViewModel
             var ballListItem = new BallListItem();
             ballListItem.X = ball.X;
             ballListItem.Y = ball.Y;
+            ballListItem.VelocityX = ball.VelocityX;
+            ballListItem.VelocityY = ball.VelocityY;
             ballListItem.Diameter = ball.Diameter;
             
             Balls.Add(ballListItem);

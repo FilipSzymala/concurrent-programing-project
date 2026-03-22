@@ -6,34 +6,61 @@ namespace Presentation.Models;
 
 public class BallListItem :INotifyPropertyChanged
 {
-    private int _x;
-    private int _y;
+    private double _x;
+    private double _y;
+    private double _velocityX;
+    private double _velocityY;
     private int _diameter;
     private Color _color;
 
-    public int X
+    public double X
     {
         get => _x;
         set
         {
-            if (_x == value) return;
+            if (_x.Equals(value)) return;
             
             _x = value;
             OnPropertyChanged();
         }
     }
 
-    public int Y
+    public double Y
     {
         get => _y;
         set
         {
-            if (_y == value) return;
+            if (_y.Equals(value)) return;
             
             _y = value;
             OnPropertyChanged();
         }
     }
+
+    public double VelocityX
+    {
+        get => _velocityX;
+        set
+        {
+            if (_velocityX.Equals(value)) return;
+
+            _velocityX = value;
+            OnPropertyChanged();
+        }
+    }
+    
+    public double VelocityY
+    {
+        get => _velocityY;
+        set
+        {
+            if (_velocityY.Equals(value)) return;
+
+            _velocityY = value;
+            OnPropertyChanged();
+        }
+    }
+    
 
     public int Diameter
     {

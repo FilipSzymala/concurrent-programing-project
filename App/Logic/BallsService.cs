@@ -8,9 +8,9 @@ namespace Logic
     {
         // Here will be business logic in the future (but we leave it for now) 
         // for wonderers it's not AI comment, but mine : p
-        private readonly HardcodedBallRepository _repository;
+        private readonly BallRepository _repository;
         
-        public BallsService(HardcodedBallRepository repository)
+        public BallsService(BallRepository repository)
         {
             _repository = repository;
         }

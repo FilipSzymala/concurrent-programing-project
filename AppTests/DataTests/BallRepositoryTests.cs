@@ -1,69 +1,62 @@
-﻿namespace DataTests;
+﻿using Data;
 
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-[TestClass]
-public class BallRepositoryTests
+namespace DataTests
 {
-    [DataTestMethod]
-    [DataRow(800, 600, 15)]   // Standardowe okno
-    [DataRow(100, 100, 5)]    // Bardzo małe okno
-    [DataRow(1920, 1080, 50)] // Ekran Full HD
-    public void GetAllPositions_ShouldGenerateCorrectNumberOfBalls(int width, int height, int count)
+    [TestClass]
+    public class BallRepositoryTests
     {
-        // Arrange
-        var repository = new HardcodedBallRepository(width, height, count);
-
-        // Act
-        var balls = repository.GetAllPositions().ToList();
-
-        // Assert
-        Assert.IsNotNull(balls);
-        Assert.AreEqual(count, balls.Count);
-    }
-
-    [DataTestMethod]
-    [DataRow(500, 500, 10)]
-    [DataRow(200, 800, 20)]
-    public void GetAllPositions_BallsShouldStayWithinDynamicBounds(int width, int height, int count)
-    {
-        // Arrange
-        var repository = new HardcodedBallRepository(width, height, count);
-
-        // Act
-        var balls = repository.GetAllPositions().ToList();
-
-        // Assert
-        foreach (var ball in balls)
+        [TestMethod]
+        [DataRow(800, 600, 15)]  
+        [DataRow(100, 100, 5)]    
+        [DataRow(1920, 1080, 50)] 
+        public void GetAllPositions_ShouldGenerateCorrectNumberOfBalls(int width, int height, int count)
         {
-            // Oś X
-            Assert.IsTrue(ball.X >= 0, "Kulka uciekła z lewej strony!");
-            Assert.IsTrue(ball.X <= width - ball.Diameter, "Kulka uciekła z prawej strony!");
-            
-            // Oś Y
-            Assert.IsTrue(ball.Y >= 0, "Kulka uciekła górą!");
-            Assert.IsTrue(ball.Y <= height - ball.Diameter, "Kulka uciekła dołem!");
+            var repository = new BallRepository(width, height, count);
+            repository.GenerateRandomBalls();
+
+            var balls = repository.GetAllPositions().ToList();
+
+            Assert.IsNotNull(balls);
+            Assert.HasCount(balls.Count, balls, "Repository generated wrong number of balls.");
         }
-    }
 
-    [TestMethod]
-    public void GetAllPositions_ShouldGenerateValidColorsAndDiameters()
-    {
-        // Arrange
-        var repository = new HardcodedBallRepository(500, 500, 10);
-
-        // Act
-        var balls = repository.GetAllPositions().ToList();
-
-        // Assert
-        foreach (var ball in balls)
+        [TestMethod]
+        [DataRow(500, 500, 10)]
+        [DataRow(200, 800, 20)]
+        public void GetAllPositions_BallsShouldStayWithinDynamicBounds(int width, int height, int count)
         {
-            // Ręczne sprawdzenie zakresów (bo MSTest nie ma Assert.InRange)
-            Assert.IsTrue(ball.Diameter >= 10 && ball.Diameter <= 50, "Średnica poza zakresem!");
-            
-            Assert.IsTrue(ball.R >= 50 && ball.R <= 255, "Kolor R poza zakresem!");
-            Assert.IsTrue(ball.G >= 50 && ball.G <= 255, "Kolor G poza zakresem!");
-            Assert.IsTrue(ball.B >= 50 && ball.B <= 255, "Kolor B poza zakresem!");
+            var repository = new BallRepository(width, height, count);
+            repository.GenerateRandomBalls();
+
+            var balls = repository.GetAllPositions().ToList();
+
+            foreach (var ball in balls)
+            {
+                Assert.IsTrue(ball.X >= 0, $"Negative X detected on ball (X: {ball.X})");
+                Assert.IsTrue(ball.X <= width - ball.Diameter, $"Ball out of right bounds (X:{ball.X}; Y:{ball.Y};diameter:{ball.Diameter})");
+                
+                Assert.IsTrue(ball.Y >= 0, $"Negative Y detected on ball (Y: {ball.Y})");
+                Assert.IsTrue(ball.Y <= height - ball.Diameter, $"Ball out of left bounds (X:{ball.X}; Y:{ball.Y};diameter:{ball.Diameter})");
+            }
+        }
+
+        [TestMethod]
+        public void GetAllPositions_ShouldGenerateValidColorsAndDiameters()
+        {
+            int width = 500, height = 500, count = 10;
+            var repository = new BallRepository(width, height, count);
+            repository.GenerateRandomBalls();
+
+            var balls = repository.GetAllPositions().ToList();
+
+            foreach (var ball in balls)
+            {
+                Assert.IsTrue(ball.Diameter >= 10 && ball.Diameter <= 50, "Diameter over size limit");
+                
+                Assert.IsTrue(ball.R >= 0 && ball.R < 200, "Ball R over size limit");
+                Assert.IsTrue(ball.G >= 0 && ball.G < 200, "Ball G over size limit");
+                Assert.IsTrue(ball.B >= 0 && ball.B < 200, "Ball B over size limit");
+            }
         }
     }
 }

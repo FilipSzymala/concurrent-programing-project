@@ -13,7 +13,7 @@
     
 		<ItemsControl.ItemsPanel>
 			<ItemsPanelTemplate>
-				<Canvas Background="Pink" />
+				<Canvas Background="White" />
 			</ItemsPanelTemplate>
 		</ItemsControl.ItemsPanel>
 
@@ -21,7 +21,11 @@
 			<DataTemplate x:DataType="models:BallListItem">
 				<Ellipse Width="{Binding Diameter}" 
 				         Height="{Binding Diameter}" 
-				         Fill="Cyan" />
+				         >
+					<Ellipse.Fill>
+						<SolidColorBrush Color="{Binding Color}" />
+					</Ellipse.Fill>
+				</Ellipse>
 			</DataTemplate>
 		</ItemsControl.ItemTemplate>
 		

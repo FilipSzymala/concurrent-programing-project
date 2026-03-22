@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using Avalonia.Media;
 using System.Runtime.CompilerServices;
 
 namespace Presentation.Models;
@@ -8,6 +9,7 @@ public class BallListItem :INotifyPropertyChanged
     private int _x;
     private int _y;
     private int _diameter;
+    private Color _color;
 
     public int X
     {
@@ -41,6 +43,19 @@ public class BallListItem :INotifyPropertyChanged
             if (_diameter == value) return;
             
             _diameter = value;
+            OnPropertyChanged();
+        }
+    }
+    
+    public Color Color
+    {
+        get => _color;
+        
+        set
+        {
+            if (_color == value) return;
+            
+            _color = value;
             OnPropertyChanged();
         }
     }

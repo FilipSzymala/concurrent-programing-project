@@ -15,6 +15,11 @@ namespace Logic
             _repository = repository;
         }
 
+        public void GenerateRandomBalls()
+        {
+            _repository.GenerateRandomBalls();
+        }
+
         public IEnumerable<BallEntity> FetchAllBalls()
         {
             return _repository.GetAllPositions();

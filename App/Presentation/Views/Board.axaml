@@ -1,0 +1,36 @@
+﻿<UserControl 
+	x:Class="Presentation.Views.Board"
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:Presentation.ViewModels"
+	xmlns:models="using:Presentation.Models"
+	x:DataType="vm:BoardViewModel"
+	Height="500"
+	Width="500"
+	>
+	
+	<ItemsControl ItemsSource="{Binding Balls}">
+    
+		<ItemsControl.ItemsPanel>
+			<ItemsPanelTemplate>
+				<Canvas Background="Pink" />
+			</ItemsPanelTemplate>
+		</ItemsControl.ItemsPanel>
+
+		<ItemsControl.ItemTemplate>
+			<DataTemplate x:DataType="models:BallListItem">
+				<Ellipse Width="{Binding Diameter}" 
+				         Height="{Binding Diameter}" 
+				         Fill="Cyan" />
+			</DataTemplate>
+		</ItemsControl.ItemTemplate>
+		
+		<ItemsControl.Styles>
+			<Style Selector="ItemsControl > ContentPresenter" x:DataType="models:BallListItem">
+				<Setter Property="Canvas.Left" Value="{Binding X}" />
+				<Setter Property="Canvas.Top" Value="{Binding Y}" />
+			</Style>
+		</ItemsControl.Styles>
+
+	</ItemsControl>
+</UserControl>

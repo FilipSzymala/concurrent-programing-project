@@ -12,6 +12,9 @@ namespace Data
         private readonly int _ballsCount;
         private List<BallEntity> _balls;
         
+        public int BoardWidth => _boardWidth;
+        public int BoardHeight => _boardHeight;
+
         public BallRepository(int boardWidth, int boardHeight, int ballsCount)
         {
             _boardWidth = boardWidth;

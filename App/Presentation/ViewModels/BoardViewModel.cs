@@ -10,6 +10,9 @@ public class BoardViewModel
     
     public ObservableCollection<BallListItem> Balls { get; }
     
+    public int BoardWidth => _ballsService.BoardWidth;
+    public int BoardHeight => _ballsService.BoardHeight;
+    
     public BoardViewModel(BallsService ballsService)
     {
         _ballsService = ballsService;

@@ -23,7 +23,7 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<BallRepository>();
+        services.AddSingleton<BallRepository>(provider => new BallRepository(500, 500, 10));
 
         services.AddTransient<BallsService>();
 

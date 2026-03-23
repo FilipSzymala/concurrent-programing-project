@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Presentation.Models;
 
-public class BallListItem :INotifyPropertyChanged
+public class BallListItem : INotifyPropertyChanged
 {
     private double _x;
     private double _y;

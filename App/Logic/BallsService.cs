@@ -10,6 +10,9 @@ namespace Logic
         // for wonderers it's not AI comment, but mine : p
         private readonly BallRepository _repository;
         
+        public int BoardWidth => _repository.BoardWidth;
+        public int BoardHeight => _repository.BoardHeight;
+        
         public BallsService(BallRepository repository)
         {
             _repository = repository;

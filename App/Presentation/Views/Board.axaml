@@ -5,15 +5,15 @@
 	xmlns:vm="using:Presentation.ViewModels"
 	xmlns:models="using:Presentation.Models"
 	x:DataType="vm:BoardViewModel"
-	Height="500"
-	Width="500"
+	Height="{Binding BoardHeight}"
+	Width="{Binding BoardWidth}"
 	>
 	
 	<ItemsControl ItemsSource="{Binding Balls}">
     
 		<ItemsControl.ItemsPanel>
 			<ItemsPanelTemplate>
-				<Canvas Background="White" />
+				<Canvas Background="White" Width="{Binding BoardWidth}" Height="{Binding BoardHeight}" />
 			</ItemsPanelTemplate>
 		</ItemsControl.ItemsPanel>
 

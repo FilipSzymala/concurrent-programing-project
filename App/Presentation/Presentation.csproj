@@ -29,4 +29,8 @@
     <ItemGroup>
         <ProjectReference Include="..\Logic\Logic.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="PresentationTest" />
+    </ItemGroup>
 </Project>

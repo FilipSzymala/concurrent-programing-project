@@ -7,12 +7,25 @@
         mc:Ignorable="d" d:DesignWidth="1080" d:DesignHeight="720"
         x:Class="Presentation.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        
         Icon="/Assets/avalonia-logo.ico"
         Title="Flying balls board simulation"
         Width="1080"
         Height="720"
-        >
-        
-        <views:Board DataContext="{Binding Board}" />
+        MinWidth="600"
+        MinHeight="450">
+
+	<DockPanel LastChildFill="True">
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10" Spacing="10">
+			<TextBlock VerticalAlignment="Center" Text="Number of balls:" />
+			<TextBox Width="80" Text="{Binding Board.BallsCountText}" />
+			<Button Content="Generuj" Command="{Binding Board.StartCommand}" />
+			<Button Content="Stop"   Command="{Binding Board.StopCommand}" />
+			<Button Content="Wznów"  Command="{Binding Board.ResumeCommand}" />
+			<TextBlock VerticalAlignment="Center"
+			           Foreground="DarkOrange"
+			           Text="{Binding Board.StatusMessage}" />
+		</StackPanel>
+
+		<views:Board DataContext="{Binding Board}" Margin="10" />
+	</DockPanel>
 </Window>

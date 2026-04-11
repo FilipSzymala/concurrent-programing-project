@@ -32,14 +32,16 @@ namespace Logic
                     nameof(ballsCount),
                     $"At least {BallLogicApi.MinBallsCount} balls are required.");
 
+            List<IBallStatus> snapshot;
             lock (_lock)
             {
                 _data.GenerateBalls(ballsCount);
                 _running = true;
                 _timer.Start();
+                snapshot = CreateSnapshot();
             }
 
-            RaiseChanged();
+            RaiseChanged(snapshot);
         }
 
         public override void Stop()
@@ -53,14 +55,19 @@ namespace Logic
 
         public override void Resume()
         {
+            List<IBallStatus> snapshot = null;
             lock (_lock)
             {
-                if (_running || _data.Balls.Count == 0) return;
-                _running = true;
-                _timer.Start();
+                if (!_running && _data.Balls.Count > 0)
+                {
+                    _running = true;
+                    _timer.Start();
+                    snapshot = CreateSnapshot();
+                }
             }
 
-            RaiseChanged();
+            if (snapshot != null)
+                RaiseChanged(snapshot);
         }
 
         public override void Dispose()
@@ -72,23 +79,32 @@ namespace Logic
 
         private void OnTick(object sender, ElapsedEventArgs e)
         {
+            List<IBallStatus> snapshot = null;
             lock (_lock)
             {
-                if (!_running) return;
-                _data.UpdatePositions();
+                if (_running)
+                {
+                    _data.UpdatePositions();
+                    snapshot = CreateSnapshot();
+                }
             }
-            RaiseChanged();
+
+            if (snapshot != null)
+                RaiseChanged(snapshot);
         }
 
-        private void RaiseChanged()
+        private List<IBallStatus> CreateSnapshot()
         {
-            var handler = BallsChanged;
-            if (handler == null) return;
-
             var snapshot = new List<IBallStatus>(_data.Balls.Count);
             foreach (var b in _data.Balls)
                 snapshot.Add(new BallStatus(b));
+            return snapshot;
+        }
 
+        private void RaiseChanged(List<IBallStatus> snapshot)
+        {
+            var handler = BallsChanged;
+            if (handler == null) return;
             handler(this, snapshot);
         }
 

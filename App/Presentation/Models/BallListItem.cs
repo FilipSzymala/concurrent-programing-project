@@ -33,14 +33,14 @@ public class BallListItem : INotifyPropertyChanged
     public Color Color
     {
         get => _color;
-        set { if (_color != value) { _color = value; OnPropertyChanged(); } }
+        private set { if (_color != value) { _color = value; OnPropertyChanged(); } }
     }
 
-    public void UpdateFrom(IBallStatus status)
+    public void UpdateFrom(IBallStatus status, double scale)
     {
-        X = status.X;
-        Y = status.Y;
-        Diameter = status.Diameter;
+        X = status.X * scale;
+        Y = status.Y * scale;
+        Diameter = status.Diameter * scale;
         Color = Color.FromRgb(status.R, status.G, status.B);
     }
 

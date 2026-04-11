@@ -15,11 +15,42 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
 
     private string _ballsCountText = BallLogicApi.DefaultBallsCount.ToString();
     private string _statusMessage = string.Empty;
+    private double _availableWidth;
+    private double _availableHeight;
+    private IReadOnlyList<IBallStatus>? _lastSnapshot;
 
     public ObservableCollection<BallListItem> Balls { get; } = new();
 
-    public int LogicalBoardWidth => _logic.BoardWidth;
-    public int LogicalBoardHeight => _logic.BoardHeight;
+    public double AvailableWidth => _availableWidth;
+    public double AvailableHeight => _availableHeight;
+
+    public double ScaledBoardWidth => _logic.BoardWidth * Scale;
+    public double ScaledBoardHeight => _logic.BoardHeight * Scale;
+
+    internal double Scale
+    {
+        get
+        {
+            double usableW = Math.Max(0, _availableWidth - 4);
+            double usableH = Math.Max(0, _availableHeight - 4);
+            if (usableW <= 0 || usableH <= 0) return 1;
+            return Math.Min(usableW / _logic.BoardWidth, usableH / _logic.BoardHeight);
+        }
+    }
+
+    public void SetAvailableSize(double width, double height)
+    {
+        if (Math.Abs(_availableWidth - width) < 0.001 && Math.Abs(_availableHeight - height) < 0.001)
+            return;
+
+        _availableWidth = width;
+        _availableHeight = height;
+        OnPropertyChanged(nameof(AvailableWidth));
+        OnPropertyChanged(nameof(AvailableHeight));
+        OnPropertyChanged(nameof(ScaledBoardWidth));
+        OnPropertyChanged(nameof(ScaledBoardHeight));
+        ReapplySnapshot();
+    }
 
     public string BallsCountText
     {
@@ -49,6 +80,7 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         _logic.Stop();
         _byId.Clear();
         Balls.Clear();
+        _lastSnapshot = null;
         _logic.Start(count);
     }
 
@@ -89,20 +121,25 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
 
     private void Apply(IReadOnlyList<IBallStatus> snapshot)
     {
+        _lastSnapshot = snapshot;
+        double scale = Scale;
+
         foreach (var status in snapshot)
         {
             if (!_byId.TryGetValue(status.Id, out var item))
             {
                 item = new BallListItem();
-                item.UpdateFrom(status);
                 _byId[status.Id] = item;
                 Balls.Add(item);
             }
-            else
-            {
-                item.UpdateFrom(status);
-            }
+            item.UpdateFrom(status, scale);
         }
+    }
+
+    private void ReapplySnapshot()
+    {
+        if (_lastSnapshot != null)
+            Apply(_lastSnapshot);
     }
 
     public void Dispose()

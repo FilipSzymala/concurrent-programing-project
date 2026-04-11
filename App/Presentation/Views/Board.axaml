@@ -4,13 +4,15 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:Presentation.ViewModels"
 	xmlns:models="using:Presentation.Models"
+	xmlns:helpers="using:Presentation.Helpers"
 	x:DataType="vm:BoardViewModel">
 
-	<Viewbox Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
-	<Border BorderBrush="Black" BorderThickness="2" Background="White">
+	<Grid helpers:SizeObserver.Observe="True">
+	<Border BorderBrush="Black" BorderThickness="2" Background="White"
+	        HorizontalAlignment="Center" VerticalAlignment="Center">
 		<ItemsControl ItemsSource="{Binding Balls}"
-		              Width="{Binding LogicalBoardWidth}"
-		              Height="{Binding LogicalBoardHeight}"
+		              Width="{Binding ScaledBoardWidth}"
+		              Height="{Binding ScaledBoardHeight}"
 		              ClipToBounds="True">
 
 			<ItemsControl.ItemsPanel>
@@ -38,5 +40,5 @@
 			</ItemsControl.Styles>
 		</ItemsControl>
 	</Border>
-	</Viewbox>
+	</Grid>
 </UserControl>

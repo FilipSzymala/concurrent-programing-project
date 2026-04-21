@@ -18,6 +18,7 @@ namespace Logic
         public abstract void Start(int ballsCount);
         public abstract void Stop();
         public abstract void Resume();
+        public abstract void Toggle();
         public abstract void Dispose();
 
         public static BallLogicApi CreateApi(BallDataApi data) => new BallsService(data);

@@ -5,6 +5,8 @@
 	xmlns:vm="using:Presentation.ViewModels"
 	xmlns:models="using:Presentation.Models"
 	xmlns:helpers="using:Presentation.Helpers"
+	xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+	xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
 	x:DataType="vm:BoardViewModel">
 
 	<Grid helpers:SizeObserver.Observe="True">
@@ -28,6 +30,11 @@
 						<Ellipse.Fill>
 							<SolidColorBrush Color="{Binding Color}" />
 						</Ellipse.Fill>
+						<i:Interaction.Behaviors>
+							<ia:EventTriggerBehavior EventName="PointerPressed">
+								<ia:InvokeCommandAction Command="{Binding $parent[UserControl].((vm:BoardViewModel)DataContext).ShowBallDetailsCommand}" CommandParameter="{Binding}" />
+							</ia:EventTriggerBehavior>
+						</i:Interaction.Behaviors>
 					</Ellipse>
 				</DataTemplate>
 			</ItemsControl.ItemTemplate>

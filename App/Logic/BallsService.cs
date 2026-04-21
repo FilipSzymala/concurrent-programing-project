@@ -70,6 +70,11 @@ namespace Logic
                 RaiseChanged(snapshot);
         }
 
+        public override void Toggle()
+        {
+            if (!_running) Resume(); else Stop();
+        }
+
         public override void Dispose()
         {
             Stop();
@@ -112,13 +117,20 @@ namespace Logic
         {
             public BallStatus(IBallData b)
             {
-                Id = b.Id; X = b.X; Y = b.Y; Diameter = b.Diameter;
+                Id = b.Id; 
+                X = b.X; 
+                Y = b.Y; 
+                Diameter = b.Diameter;
+                VelocityX = b.VelocityX;
+                VelocityY = b.VelocityY;
                 R = b.R; G = b.G; B = b.B;
             }
             public int Id { get; }
             public double X { get; }
             public double Y { get; }
             public int Diameter { get; }
+            public double VelocityX { get; }
+            public double VelocityY { get; }
             public byte R { get; }
             public byte G { get; }
             public byte B { get; }

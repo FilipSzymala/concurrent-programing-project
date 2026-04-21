@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Logic;
 using Presentation.Models;
+using Presentation.Views;
 
 namespace Presentation.ViewModels;
 
@@ -18,6 +20,9 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     private double _availableWidth;
     private double _availableHeight;
     private IReadOnlyList<IBallStatus>? _lastSnapshot;
+    private BallListItem? _selectedBallDetails;
+    private double _averageSpeed;
+    private string _simulationToggleLabel = "Resume";
 
     public ObservableCollection<BallListItem> Balls { get; } = new();
 
@@ -26,6 +31,21 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
 
     public double ScaledBoardWidth => _logic.BoardWidth * Scale;
     public double ScaledBoardHeight => _logic.BoardHeight * Scale;
+
+    public int BallsCount => Balls.Count;
+
+
+    public double AverageSpeed
+    {
+        get => _averageSpeed;
+        private set => SetProperty(ref _averageSpeed, value);
+    }
+
+    public BallListItem? SelectedBallDetails
+    {
+        get => _selectedBallDetails;
+        set => SetProperty(ref _selectedBallDetails, value);
+    }
 
     internal double Scale
     {
@@ -64,10 +84,18 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _statusMessage, value);
     }
 
+    public string SimulationToggleLabel
+    {
+        get => _simulationToggleLabel;
+        set => SetProperty(ref _simulationToggleLabel, value);    
+    }
+
     public BoardViewModel(BallLogicApi logic)
     {
         _logic = logic;
         _logic.BallsChanged += OnBallsChanged;
+        
+        ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -80,8 +108,14 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         _logic.Stop();
         _byId.Clear();
         Balls.Clear();
+        
+        ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
+        
+        SelectedBallDetails = null;
         _lastSnapshot = null;
         _logic.Start(count);
+        UpdateToggleLabel();
+        OnPropertyChanged(nameof(BallsCount));
     }
 
     internal static int ResolveBallsCount(string text, out string message)
@@ -114,6 +148,29 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void Resume() => _logic.Resume();
 
+    [RelayCommand(CanExecute = nameof(CanToggleMoveSimulation))]
+    private void ToggleMoveSimulation()
+    {
+        _logic.Toggle();
+        UpdateToggleLabel();
+    }
+    
+    private bool CanToggleMoveSimulation()
+    {
+        return Balls.Count > 0;
+    }
+    
+    private void UpdateToggleLabel()
+    {
+        SimulationToggleLabel = _logic.IsRunning ? "Stop" : "Resume";
+    }
+
+    [RelayCommand]
+    private void ShowBallDetails(BallListItem? ball)
+    {
+        SelectedBallDetails = ball;
+    }
+
     private void OnBallsChanged(object? sender, IReadOnlyList<IBallStatus> snapshot)
     {
         Dispatcher.UIThread.Post(() => Apply(snapshot));
@@ -123,6 +180,10 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     {
         _lastSnapshot = snapshot;
         double scale = Scale;
+        
+        double totalSpeed = 0;
+        
+        bool isNewList = snapshot.Count > 0 && Balls.Count == 0;
 
         foreach (var status in snapshot)
         {
@@ -133,6 +194,23 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
                 Balls.Add(item);
             }
             item.UpdateFrom(status, scale);
+            
+            double speed = Math.Sqrt(status.VelocityX * status.VelocityX + status.VelocityY * status.VelocityY);
+            totalSpeed += speed;
+        }
+        
+        if (isNewList)
+        {
+            ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
+        }
+
+        if (snapshot.Count > 0)
+        {
+            AverageSpeed = totalSpeed / snapshot.Count;
+        }
+        else
+        {
+            AverageSpeed = 0;
         }
     }
 

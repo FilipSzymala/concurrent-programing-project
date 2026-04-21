@@ -1,18 +1,16 @@
-﻿namespace Data.Models
+namespace Data.Models
 {
-    public class BallEntity
+    internal class BallEntity : IBallData
     {
         public int Id { get; set; }
         public double X { get; set; }
         public double Y { get; set; }
         public int Diameter { get; set; }
-        public double VelocityX { get; set; }
-        public double VelocityY { get; set; }
-        
-        
+        public Vector2D Velocity { get; set; }
+        public double VelocityX => Velocity.X;
+        public double VelocityY => Velocity.Y;
         public byte R { get; set; }
         public byte G { get; set; }
         public byte B { get; set; }
-        
     }
 }

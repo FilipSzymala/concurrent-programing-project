@@ -1,40 +1,51 @@
-﻿<UserControl 
+<UserControl
 	x:Class="Presentation.Views.Board"
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:Presentation.ViewModels"
 	xmlns:models="using:Presentation.Models"
-	x:DataType="vm:BoardViewModel"
-	Height="{Binding BoardHeight}"
-	Width="{Binding BoardWidth}"
-	>
-	
-	<ItemsControl ItemsSource="{Binding Balls}">
-    
-		<ItemsControl.ItemsPanel>
-			<ItemsPanelTemplate>
-				<Canvas Background="White" Width="{Binding BoardWidth}" Height="{Binding BoardHeight}" />
-			</ItemsPanelTemplate>
-		</ItemsControl.ItemsPanel>
+	xmlns:helpers="using:Presentation.Helpers"
+	xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+	xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
+	x:DataType="vm:BoardViewModel">
 
-		<ItemsControl.ItemTemplate>
-			<DataTemplate x:DataType="models:BallListItem">
-				<Ellipse Width="{Binding Diameter}" 
-				         Height="{Binding Diameter}" 
-				         >
-					<Ellipse.Fill>
-						<SolidColorBrush Color="{Binding Color}" />
-					</Ellipse.Fill>
-				</Ellipse>
-			</DataTemplate>
-		</ItemsControl.ItemTemplate>
-		
-		<ItemsControl.Styles>
-			<Style Selector="ItemsControl > ContentPresenter" x:DataType="models:BallListItem">
-				<Setter Property="Canvas.Left" Value="{Binding X}" />
-				<Setter Property="Canvas.Top" Value="{Binding Y}" />
-			</Style>
-		</ItemsControl.Styles>
+	<Grid helpers:SizeObserver.Observe="True">
+	<Border BorderBrush="Black" BorderThickness="2" Background="White"
+	        HorizontalAlignment="Center" VerticalAlignment="Center">
+		<ItemsControl ItemsSource="{Binding Balls}"
+		              Width="{Binding ScaledBoardWidth}"
+		              Height="{Binding ScaledBoardHeight}"
+		              ClipToBounds="True">
 
-	</ItemsControl>
+			<ItemsControl.ItemsPanel>
+				<ItemsPanelTemplate>
+					<Canvas Background="Transparent" />
+				</ItemsPanelTemplate>
+			</ItemsControl.ItemsPanel>
+
+			<ItemsControl.ItemTemplate>
+				<DataTemplate x:DataType="models:BallListItem">
+					<Ellipse Width="{Binding Diameter}"
+					         Height="{Binding Diameter}">
+						<Ellipse.Fill>
+							<SolidColorBrush Color="{Binding Color}" />
+						</Ellipse.Fill>
+						<i:Interaction.Behaviors>
+							<ia:EventTriggerBehavior EventName="PointerPressed">
+								<ia:InvokeCommandAction Command="{Binding $parent[UserControl].((vm:BoardViewModel)DataContext).ShowBallDetailsCommand}" CommandParameter="{Binding}" />
+							</ia:EventTriggerBehavior>
+						</i:Interaction.Behaviors>
+					</Ellipse>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+
+			<ItemsControl.Styles>
+				<Style Selector="ItemsControl > ContentPresenter" x:DataType="models:BallListItem">
+					<Setter Property="Canvas.Left" Value="{Binding X}" />
+					<Setter Property="Canvas.Top" Value="{Binding Y}" />
+				</Style>
+			</ItemsControl.Styles>
+		</ItemsControl>
+	</Border>
+	</Grid>
 </UserControl>

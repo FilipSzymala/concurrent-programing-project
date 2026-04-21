@@ -2,17 +2,122 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Presentation.ViewModels"
         xmlns:views="using:Presentation.Views"
+        xmlns:models="using:Presentation.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1080" d:DesignHeight="720"
         x:Class="Presentation.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        
         Icon="/Assets/avalonia-logo.ico"
         Title="Flying balls board simulation"
         Width="1080"
         Height="720"
-        >
-        
-        <views:Board DataContext="{Binding Board}" />
+        MinWidth="600"
+        MinHeight="450">
+	
+	<Grid ColumnDefinitions="*, 250" RowDefinitions="100,*">
+		<WrapPanel Orientation="Horizontal" Margin="10" Grid.Row="0" Grid.Column="0">
+			<WrapPanel.Styles>
+				<Style Selector="WrapPanel > :is(Control)">
+					<Setter Property="Margin" Value="0, 0, 30, 30"/>
+				</Style>
+			</WrapPanel.Styles>
+			
+			<StackPanel Orientation="Vertical" Spacing="20">
+				<StackPanel Orientation="Vertical">
+					<StackPanel Orientation="Horizontal" Spacing="10">
+						<TextBlock Text="Symulacja:" FontSize="26"/>
+						<Button Content="{Binding Board.SimulationToggleLabel}" Width="105" HorizontalContentAlignment="Center" Command="{Binding Board.ToggleMoveSimulationCommand}" />		
+					</StackPanel>
+				</StackPanel>
+				
+				<StackPanel Orientation="Horizontal" VerticalAlignment="Top" Spacing="10">
+					<TextBlock Text="Ilość:" FontSize="26"/>
+					<TextBox Width="10" VerticalAlignment="Top" Text="{Binding Board.BallsCountText}" />
+					<Button Content="Generuj kule" Command="{Binding Board.StartCommand}" />
+				</StackPanel>
+			</StackPanel>
+			
+			<StackPanel Orientation="Vertical" Spacing="10">
+				<Grid ColumnDefinitions="Auto, Auto, *" RowDefinitions="Auto, Auto">
+    
+					<TextBlock Grid.Row="0" Grid.Column="0" Text="Kule" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+					<TextBlock Grid.Row="0" Grid.Column="1" Text=":" FontWeight="Bold" FontSize="16" Margin="5,0,15,5" VerticalAlignment="Center"/>
+					<TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Board.BallsCount}" VerticalAlignment="Center" Margin="0,0,0,5" FontSize="16" />
+
+					<TextBlock Grid.Row="1" Grid.Column="0" Text="Średnia prędkość" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+					<TextBlock Grid.Row="1" Grid.Column="1" Text=":" FontWeight="Bold" FontSize="16" Margin="5,0,15,0" VerticalAlignment="Center"/>
+					<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Board.AverageSpeed, StringFormat=\{0:F2\}}" VerticalAlignment="Center" FontSize="16"/>
+               
+				</Grid>
+			</StackPanel>
+			<TextBlock Foreground="DarkOrange" Width="200"
+			           Margin="50 0 0 0"
+			           FontSize="16"
+			           Text="{Binding Board.StatusMessage}" />
+		</WrapPanel>
+		
+		<!-- Ball stats -->
+		<Border Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1,0,0,0" Padding="10" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1">
+			<StackPanel Spacing="10">
+				<TextBlock Text="Statystyki kuli" Foreground="Black"  FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+				
+				<ContentControl Content="{Binding Board.SelectedBallDetails}">
+					<ContentControl.DataTemplates>
+						<DataTemplate DataType="models:BallListItem">
+							<StackPanel Spacing="5">
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="Id:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding Id}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="X:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding X, StringFormat=\{0:F2\}}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="Y:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding Y, StringFormat=\{0:F2\}}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="Diameter:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding Diameter, StringFormat=\{0:F2\}}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="Velocity X:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding VelocityX, StringFormat=\{0:F2\}}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5">
+									<TextBlock Text="Velocity Y:" FontWeight="SemiBold" Width="70" Foreground="Black"/>
+									<TextBlock Text="{Binding VelocityY, StringFormat=\{0:F2\}}" Foreground="Black"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Spacing="5" Margin="0,10,0,0">
+									<TextBlock Text="Color:" FontWeight="SemiBold" Width="70" VerticalAlignment="Center" Foreground="Black"/>
+									<Rectangle Width="20" Height="20" Stroke="Black" StrokeThickness="1" >
+										<Rectangle.Fill>
+											<SolidColorBrush Color="{Binding Color}" />
+										</Rectangle.Fill>
+									</Rectangle>
+								</StackPanel>
+							</StackPanel>
+						</DataTemplate>
+					</ContentControl.DataTemplates>
+				</ContentControl>
+
+				<!-- Text to show when no ball is selected -->
+				<TextBlock Text="Zaznacz kule, by wyswielic statystyki" 
+				           IsVisible="{Binding Board.SelectedBallDetails, Converter={x:Static ObjectConverters.IsNull}}" 
+				           HorizontalAlignment="Center" 
+				           Foreground="Gray" 
+				           FontStyle="Italic" 
+				           TextWrapping="Wrap" />
+			</StackPanel>
+		</Border>
+		
+		<DockPanel LastChildFill="True" Grid.Row="1" Grid.Column="0">
+			<!-- Right panel for ball details -->
+			<!-- Main game board -->
+			<views:Board DataContext="{Binding Board}" Margin="10" />
+		</DockPanel>
+	</Grid>
+
 </Window>

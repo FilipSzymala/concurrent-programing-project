@@ -1,4 +1,4 @@
-﻿using Data;
+using Data;
 
 namespace DataTests;
 
@@ -9,74 +9,283 @@ public class BallRepositoryTests
     [DataRow(800, 600, 15)]
     [DataRow(100, 100, 5)]
     [DataRow(1920, 1080, 50)]
-    public void GetAllPositions_ShouldGenerateCorrectNumberOfBalls(int width, int height, int count)
+    public void GenerateBalls_ProducesExactlyRequestedCount(int width, int height, int count)
     {
-        var repository = new BallRepository(width, height, count);
-        repository.GenerateRandomBalls();
+        var api = BallDataApi.CreateApi(width, height);
+        api.GenerateBalls(count);
 
-        var balls = repository.GetAllPositions().ToList();
-
-        Assert.IsNotNull(balls);
-        Assert.HasCount(balls.Count, balls);
+        Assert.AreEqual(count, api.Balls.Count);
     }
 
-    [TestMethod][DataRow(500, 500, 10)]
+    [TestMethod]
+    [DataRow(500, 500, 10)]
     [DataRow(200, 800, 20)]
-    public void GetAllPositions_BallsShouldStayWithinDynamicBounds(int width, int height, int count)
+    public void GenerateBalls_AllBallsInsideBoardBounds(int width, int height, int count)
     {
-        var repository = new BallRepository(width, height, count);
-        repository.GenerateRandomBalls();
+        var api = BallDataApi.CreateApi(width, height);
+        api.GenerateBalls(count);
 
-        var balls = repository.GetAllPositions().ToList();
-
-        foreach (var ball in balls)
+        foreach (var ball in api.Balls)
         {
-            Assert.IsGreaterThanOrEqualTo(0.0, ball.X);
-            Assert.IsLessThanOrEqualTo((double)(width - ball.Diameter), ball.X);
-        
-            Assert.IsGreaterThanOrEqualTo(0.0, ball.Y);
-            Assert.IsLessThanOrEqualTo((double)(height - ball.Diameter), ball.Y);
+            Assert.IsTrue(ball.X >= 0);
+            Assert.IsTrue(ball.X + ball.Diameter <= width);
+            Assert.IsTrue(ball.Y >= 0);
+            Assert.IsTrue(ball.Y + ball.Diameter <= height);
         }
     }
 
     [TestMethod]
-    public void GetAllPositions_ShouldGenerateValidColorsAndDiameters()
+    public void GenerateBalls_DiametersWithinAllowedRange()
     {
-        int width = 500, height = 500, count = 10;
-        var repository = new BallRepository(width, height, count);
-        repository.GenerateRandomBalls();
+        var api = BallDataApi.CreateApi(500, 500);
+        api.GenerateBalls(30);
 
-        var balls = repository.GetAllPositions().ToList();
+        foreach (var ball in api.Balls)
+            Assert.IsTrue(ball.Diameter >= 35 && ball.Diameter <= 70);
+    }
 
-        foreach (var ball in balls)
+    [TestMethod]
+    public void GenerateBalls_AllBallsHaveNonZeroVelocity()
+    {
+        var api = BallDataApi.CreateApi(500, 500);
+        api.GenerateBalls(20);
+
+        foreach (var ball in api.Balls)
+            Assert.IsTrue(ball.Velocity.Length > 0);
+    }
+
+    [TestMethod]
+    public void GenerateBalls_IdsAreSequentialFromZero()
+    {
+        var api = BallDataApi.CreateApi(500, 500);
+        api.GenerateBalls(10);
+
+        for (int i = 0; i < api.Balls.Count; i++)
+            Assert.AreEqual(i, api.Balls[i].Id);
+    }
+
+    [TestMethod]
+    public void GenerateBalls_CalledTwice_ReplacesOldBalls()
+    {
+        var api = BallDataApi.CreateApi(500, 500);
+        api.GenerateBalls(10);
+        api.GenerateBalls(3);
+
+        Assert.AreEqual(3, api.Balls.Count);
+        for (int i = 0; i < 3; i++)
+            Assert.AreEqual(i, api.Balls[i].Id);
+    }
+
+    [TestMethod]
+    public void Constructor_BoardSmallerThanMaxDiameter_Throws()
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => BallDataApi.CreateApi(10, 10));
+    }
+
+    [TestMethod]
+    public void BoardDimensions_MatchConstructorValues()
+    {
+        var api = BallDataApi.CreateApi(800, 600);
+
+        Assert.AreEqual(800, api.BoardWidth);
+        Assert.AreEqual(600, api.BoardHeight);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_FreeFlight_MovesAccordingToVelocity()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 80, y: 80, diameter: 20, velocity: new Vector2D(3, -4));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.AreEqual(83.0, ball.X);
+        Assert.AreEqual(76.0, ball.Y);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_FreeFlight_VelocityUnchanged()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 80, y: 80, diameter: 20, velocity: new Vector2D(3, -4));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.AreEqual(3.0, ball.Velocity.X);
+        Assert.AreEqual(-4.0, ball.Velocity.Y);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_BounceOffRightWall_ReversesXVelocity()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 170, y: 50, diameter: 20, velocity: new Vector2D(15, 0));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.Velocity.X < 0);
+        Assert.IsTrue(ball.X + ball.Diameter <= 200);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_BounceOffLeftWall_ReversesXVelocity()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 5, y: 50, diameter: 20, velocity: new Vector2D(-12, 0));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.Velocity.X > 0);
+        Assert.IsTrue(ball.X >= 0);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_BounceOffBottomWall_ReversesYVelocity()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 175, diameter: 20, velocity: new Vector2D(0, 15));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.Velocity.Y < 0);
+        Assert.IsTrue(ball.Y + ball.Diameter <= 200);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_BounceOffTopWall_ReversesYVelocity()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 5, diameter: 20, velocity: new Vector2D(0, -12));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.Velocity.Y > 0);
+        Assert.IsTrue(ball.Y >= 0);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_CornerBounce_BothVelocityComponentsReverse()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 175, y: 175, diameter: 20, velocity: new Vector2D(10, 10));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.Velocity.X < 0);
+        Assert.IsTrue(ball.Velocity.Y < 0);
+        Assert.IsTrue(ball.X >= 0 && ball.X + ball.Diameter <= 200);
+        Assert.IsTrue(ball.Y >= 0 && ball.Y + ball.Diameter <= 200);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_ZeroVelocity_BallStaysInPlace()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 100, y: 100, diameter: 20, velocity: new Vector2D(0, 0));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.AreEqual(100.0, ball.X);
+        Assert.AreEqual(100.0, ball.Y);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_HugeVelocity_BallStillInsideBoard()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 100, y: 100, diameter: 20, velocity: new Vector2D(9999, 9999));
+
+        repo.UpdatePositions();
+
+        var ball = repo.Balls[0];
+        Assert.IsTrue(ball.X >= 0 && ball.X + ball.Diameter <= 200);
+        Assert.IsTrue(ball.Y >= 0 && ball.Y + ball.Diameter <= 200);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_1000Ticks_BallNeverLeavesBoard()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 170, diameter: 40, velocity: new Vector2D(1.7, 1.9));
+
+        for (int tick = 0; tick < 1000; tick++)
         {
-            Assert.IsTrue(ball.Diameter >= 10 && ball.Diameter <= 50);
-
-            Assert.IsTrue(ball.R >= 0 && ball.R < 200);
-            Assert.IsTrue(ball.G >= 0 && ball.G < 200);
-            Assert.IsTrue(ball.B >= 0 && ball.B < 200);
+            repo.UpdatePositions();
+            var ball = repo.Balls[0];
+            Assert.IsTrue(ball.X >= 0);
+            Assert.IsTrue(ball.X + ball.Diameter <= 200);
+            Assert.IsTrue(ball.Y >= 0);
+            Assert.IsTrue(ball.Y + ball.Diameter <= 200);
         }
     }
 
     [TestMethod]
-    public void GenerateRandomBalls_ShouldThrowException_WhenBoardIsTooSmall()
+    public void UpdatePositions_MultipleBalls_AllStayInsideAfterManyTicks()
     {
-        var repository = new BallRepository(10, 10, 1);
+        var api = BallDataApi.CreateApi(300, 300);
+        api.GenerateBalls(15);
 
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => repository.GenerateRandomBalls());
+        for (int tick = 0; tick < 500; tick++)
+        {
+            api.UpdatePositions();
+            foreach (var ball in api.Balls)
+            {
+                Assert.IsTrue(ball.X >= 0);
+                Assert.IsTrue(ball.X + ball.Diameter <= 300);
+                Assert.IsTrue(ball.Y >= 0);
+                Assert.IsTrue(ball.Y + ball.Diameter <= 300);
+            }
+        }
     }
 
     [TestMethod]
-    public void GenerateRandomBalls_ShouldAssignUniqueAndSequentialIds()
+    public void UpdatePositions_BallOnExactEdge_DoesNotEscape()
     {
-        var repository = new BallRepository(500, 500, 10);
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 180, y: 180, diameter: 20, velocity: new Vector2D(0, 0));
 
-        repository.GenerateRandomBalls();
-        var balls = repository.GetAllPositions().ToList();
+        repo.UpdatePositions();
 
-        for (int i = 0; i < balls.Count; i++)
-        {
-            Assert.AreEqual(i, balls[i].Id);
-        }
+        var ball = repo.Balls[0];
+        Assert.AreEqual(180.0, ball.X);
+        Assert.AreEqual(180.0, ball.Y);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_ActuallyMovesBalls()
+    {
+        var api = BallDataApi.CreateApi(500, 500);
+        api.GenerateBalls(5);
+
+        var before = api.Balls.Select(b => (b.X, b.Y)).ToList();
+        api.UpdatePositions();
+        var after = api.Balls.Select(b => (b.X, b.Y)).ToList();
+
+        bool anyMoved = false;
+        for (int i = 0; i < before.Count; i++)
+            if (before[i] != after[i]) { anyMoved = true; break; }
+
+        Assert.IsTrue(anyMoved);
+    }
+
+    [TestMethod]
+    public void UpdatePositions_BouncePreservesSpeedMagnitude()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 170, y: 50, diameter: 20, velocity: new Vector2D(15, 3));
+
+        double speedBefore = repo.Balls[0].Velocity.Length;
+        repo.UpdatePositions();
+        double speedAfter = repo.Balls[0].Velocity.Length;
+
+        Assert.AreEqual(speedBefore, speedAfter);
     }
 }

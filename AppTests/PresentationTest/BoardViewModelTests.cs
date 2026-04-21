@@ -170,6 +170,8 @@ public sealed class BoardViewModelTests
         public int Id { get; }
         public double X { get; }
         public double Y { get; }
+        public double VelocityX { get; }
+        public double VelocityY { get; }
         public int Diameter { get; }
         public byte R { get; }
         public byte G { get; }

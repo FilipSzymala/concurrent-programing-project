@@ -192,6 +192,8 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
                 item = new BallListItem();
                 _byId[status.Id] = item;
                 Balls.Add(item);
+                
+                OnPropertyChanged(nameof(BallsCount));
             }
             item.UpdateFrom(status, scale);
             

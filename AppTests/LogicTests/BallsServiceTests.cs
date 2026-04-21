@@ -102,7 +102,7 @@ public sealed class BallsServiceTests
         Thread.Sleep(150);
         logic.Stop();
 
-        Assert.IsTrue(data.UpdateCalls > 0);
+        Assert.IsGreaterThan(0, data.UpdateCalls);
     }
 
     [TestMethod]
@@ -133,7 +133,7 @@ public sealed class BallsServiceTests
         Thread.Sleep(100);
         logic.Stop();
 
-        Assert.IsTrue(data.UpdateCalls > callsAfterStop);
+        Assert.IsGreaterThan(callsAfterStop, data.UpdateCalls);
     }
 
     [TestMethod]

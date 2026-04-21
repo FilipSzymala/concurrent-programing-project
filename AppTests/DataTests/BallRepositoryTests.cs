@@ -14,7 +14,7 @@ public class BallRepositoryTests
         var api = BallDataApi.CreateApi(width, height);
         api.GenerateBalls(count);
 
-        Assert.AreEqual(count, api.Balls.Count);
+        Assert.HasCount(count, api.Balls);
     }
 
     [TestMethod]
@@ -27,10 +27,10 @@ public class BallRepositoryTests
 
         foreach (var ball in api.Balls)
         {
-            Assert.IsTrue(ball.X >= 0);
-            Assert.IsTrue(ball.X + ball.Diameter <= width);
-            Assert.IsTrue(ball.Y >= 0);
-            Assert.IsTrue(ball.Y + ball.Diameter <= height);
+            Assert.IsGreaterThanOrEqualTo(0, ball.X);
+            Assert.IsLessThanOrEqualTo(width, ball.X + ball.Diameter);
+            Assert.IsGreaterThanOrEqualTo(0, ball.Y);
+            Assert.IsLessThanOrEqualTo(height, ball.Y + ball.Diameter);
         }
     }
 
@@ -41,7 +41,10 @@ public class BallRepositoryTests
         api.GenerateBalls(30);
 
         foreach (var ball in api.Balls)
-            Assert.IsTrue(ball.Diameter >= 35 && ball.Diameter <= 70);
+        {
+            Assert.IsGreaterThanOrEqualTo(35, ball.Diameter);
+            Assert.IsLessThanOrEqualTo(70, ball.Diameter);
+        }
     }
 
     [TestMethod]
@@ -51,7 +54,7 @@ public class BallRepositoryTests
         api.GenerateBalls(20);
 
         foreach (var ball in api.Balls)
-            Assert.IsTrue(ball.Velocity.Length > 0);
+            Assert.IsGreaterThan(0, ball.Velocity.Length);
     }
 
     [TestMethod]
@@ -71,7 +74,7 @@ public class BallRepositoryTests
         api.GenerateBalls(10);
         api.GenerateBalls(3);
 
-        Assert.AreEqual(3, api.Balls.Count);
+        Assert.HasCount(3, api.Balls);
         for (int i = 0; i < 3; i++)
             Assert.AreEqual(i, api.Balls[i].Id);
     }
@@ -126,8 +129,8 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.Velocity.X < 0);
-        Assert.IsTrue(ball.X + ball.Diameter <= 200);
+        Assert.IsLessThan(0, ball.Velocity.X);
+        Assert.IsLessThanOrEqualTo(200, ball.X + ball.Diameter);
     }
 
     [TestMethod]
@@ -139,8 +142,8 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.Velocity.X > 0);
-        Assert.IsTrue(ball.X >= 0);
+        Assert.IsGreaterThan(0, ball.Velocity.X);
+        Assert.IsGreaterThanOrEqualTo(0, ball.X);
     }
 
     [TestMethod]
@@ -152,8 +155,8 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.Velocity.Y < 0);
-        Assert.IsTrue(ball.Y + ball.Diameter <= 200);
+        Assert.IsLessThan(0, ball.Velocity.Y);
+        Assert.IsLessThanOrEqualTo(200, ball.Y + ball.Diameter);
     }
 
     [TestMethod]
@@ -165,8 +168,8 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.Velocity.Y > 0);
-        Assert.IsTrue(ball.Y >= 0);
+        Assert.IsGreaterThan(0, ball.Velocity.Y);
+        Assert.IsGreaterThanOrEqualTo(0, ball.Y);
     }
 
     [TestMethod]
@@ -178,10 +181,12 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.Velocity.X < 0);
-        Assert.IsTrue(ball.Velocity.Y < 0);
-        Assert.IsTrue(ball.X >= 0 && ball.X + ball.Diameter <= 200);
-        Assert.IsTrue(ball.Y >= 0 && ball.Y + ball.Diameter <= 200);
+        Assert.IsLessThan(0, ball.Velocity.X);
+        Assert.IsLessThan(0, ball.Velocity.Y);
+        Assert.IsGreaterThanOrEqualTo(0, ball.X);
+        Assert.IsLessThanOrEqualTo(200, ball.X + ball.Diameter);
+        Assert.IsGreaterThanOrEqualTo(0, ball.Y);
+        Assert.IsLessThanOrEqualTo(200, ball.Y + ball.Diameter);
     }
 
     [TestMethod]
@@ -206,8 +211,10 @@ public class BallRepositoryTests
         repo.UpdatePositions();
 
         var ball = repo.Balls[0];
-        Assert.IsTrue(ball.X >= 0 && ball.X + ball.Diameter <= 200);
-        Assert.IsTrue(ball.Y >= 0 && ball.Y + ball.Diameter <= 200);
+        Assert.IsGreaterThanOrEqualTo(0, ball.X);
+        Assert.IsLessThanOrEqualTo(200, ball.X + ball.Diameter);
+        Assert.IsGreaterThanOrEqualTo(0, ball.Y);
+        Assert.IsLessThanOrEqualTo(200, ball.Y + ball.Diameter);
     }
 
     [TestMethod]
@@ -220,10 +227,10 @@ public class BallRepositoryTests
         {
             repo.UpdatePositions();
             var ball = repo.Balls[0];
-            Assert.IsTrue(ball.X >= 0);
-            Assert.IsTrue(ball.X + ball.Diameter <= 200);
-            Assert.IsTrue(ball.Y >= 0);
-            Assert.IsTrue(ball.Y + ball.Diameter <= 200);
+            Assert.IsGreaterThanOrEqualTo(0, ball.X);
+            Assert.IsLessThanOrEqualTo(200, ball.X + ball.Diameter);
+            Assert.IsGreaterThanOrEqualTo(0, ball.Y);
+            Assert.IsLessThanOrEqualTo(200, ball.Y + ball.Diameter);
         }
     }
 
@@ -238,10 +245,10 @@ public class BallRepositoryTests
             api.UpdatePositions();
             foreach (var ball in api.Balls)
             {
-                Assert.IsTrue(ball.X >= 0);
-                Assert.IsTrue(ball.X + ball.Diameter <= 300);
-                Assert.IsTrue(ball.Y >= 0);
-                Assert.IsTrue(ball.Y + ball.Diameter <= 300);
+                Assert.IsGreaterThanOrEqualTo(0, ball.X);
+                Assert.IsLessThanOrEqualTo(300, ball.X + ball.Diameter);
+                Assert.IsGreaterThanOrEqualTo(0, ball.Y);
+                Assert.IsLessThanOrEqualTo(300, ball.Y + ball.Diameter);
             }
         }
     }

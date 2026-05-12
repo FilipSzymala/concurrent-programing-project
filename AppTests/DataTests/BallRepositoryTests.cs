@@ -230,7 +230,7 @@ public class BallRepositoryTests
         var ball = repo.Balls[0];
 
         bool writerDone = false;
-        Exception readerFailure = null;
+        Exception? readerFailure = null;
 
         var writer = new Thread(() =>
         {

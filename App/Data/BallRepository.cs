@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using Data.Models;
 
 namespace Data
@@ -9,11 +11,17 @@ namespace Data
         private const int MinDiameter = 35;
         private const int MaxDiameter = 70;
         private const double MaxAbsVelocity = 2.0;
+        private const int StepIntervalMs = 16;
 
         private readonly Random _random = new Random();
         private readonly int _boardWidth;
         private readonly int _boardHeight;
         private readonly List<BallEntity> _balls = new List<BallEntity>();
+        private readonly object _lifecycleLock = new object();
+
+        private ManualResetEventSlim _stopEvent;
+        private Thread[] _threads = Array.Empty<Thread>();
+        private bool _isMoving;
 
         public BallRepository(int boardWidth, int boardHeight)
         {
@@ -34,94 +42,127 @@ namespace Data
         {
             if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
 
-            _balls.Clear();
+            StopMovement();
 
-            for (int i = 0; i < count; i++)
+            lock (_lifecycleLock)
             {
-                int diameter = _random.Next(MinDiameter, MaxDiameter + 1);
+                _balls.Clear();
 
-                double x = _random.Next(0, _boardWidth - diameter + 1);
-                double y = _random.Next(0, _boardHeight - diameter + 1);
-
-                byte r = (byte)_random.Next(0, 200);
-                byte g = (byte)_random.Next(0, 200);
-                byte b = (byte)_random.Next(0, 200);
-
-                double vx = NextNonZeroVelocity();
-                double vy = NextNonZeroVelocity();
-
-                _balls.Add(new BallEntity
+                for (int i = 0; i < count; i++)
                 {
-                    Id = i,
-                    X = x,
-                    Y = y,
-                    Diameter = diameter,
-                    Velocity = new Vector2D(vx, vy),
-                    R = r,
-                    G = g,
-                    B = b
-                });
+                    int diameter = _random.Next(MinDiameter, MaxDiameter + 1);
+
+                    double x = _random.Next(0, _boardWidth - diameter + 1);
+                    double y = _random.Next(0, _boardHeight - diameter + 1);
+
+                    byte r = (byte)_random.Next(0, 200);
+                    byte g = (byte)_random.Next(0, 200);
+                    byte b = (byte)_random.Next(0, 200);
+
+                    double vx = NextNonZeroVelocity();
+                    double vy = NextNonZeroVelocity();
+
+                    double radius = diameter / 2.0;
+                    double mass = Math.PI * radius * radius;
+
+                    _balls.Add(new BallEntity(
+                        id: i,
+                        x: x,
+                        y: y,
+                        diameter: diameter,
+                        mass: mass,
+                        velocity: new Vector2D(vx, vy),
+                        r: r, g: g, b: b));
+                }
             }
         }
 
-        public override void UpdatePositions()
+        public override void StartMovement()
         {
-            foreach (var ball in _balls)
+            lock (_lifecycleLock)
             {
-                double maxX = _boardWidth - ball.Diameter;
-                double maxY = _boardHeight - ball.Diameter;
+                if (_isMoving) return;
+                if (_balls.Count == 0) return;
 
-                double newX = ball.X + ball.Velocity.X;
-                double newY = ball.Y + ball.Velocity.Y;
-                var velocity = ball.Velocity;
-
-                if (newX < 0)
+                _stopEvent = new ManualResetEventSlim(false);
+                ManualResetEventSlim stopEvent = _stopEvent;
+                var threads = new Thread[_balls.Count];
+                for (int i = 0; i < _balls.Count; i++)
                 {
-                    newX = -newX;
-                    velocity = velocity.WithX(-velocity.X);
+                    BallEntity ball = _balls[i];
+                    var thread = new Thread(() => RunBallLoop(ball, stopEvent))
+                    {
+                        IsBackground = true,
+                        Name = $"Ball-{i}"
+                    };
+                    threads[i] = thread;
+                    thread.Start();
                 }
-                else if (newX > maxX)
-                {
-                    newX = 2 * maxX - newX;
-                    velocity = velocity.WithX(-velocity.X);
-                }
-
-                if (newY < 0)
-                {
-                    newY = -newY;
-                    velocity = velocity.WithY(-velocity.Y);
-                }
-                else if (newY > maxY)
-                {
-                    newY = 2 * maxY - newY;
-                    velocity = velocity.WithY(-velocity.Y);
-                }
-
-                if (newX < 0) newX = 0;
-                else if (newX > maxX) newX = maxX;
-                if (newY < 0) newY = 0;
-                else if (newY > maxY) newY = maxY;
-
-                ball.X = newX;
-                ball.Y = newY;
-                ball.Velocity = velocity;
+                _threads = threads;
+                _isMoving = true;
             }
         }
 
-        internal void SeedBall(double x, double y, int diameter, Vector2D velocity)
+        public override void StopMovement()
         {
-            _balls.Add(new BallEntity
+            ManualResetEventSlim stopEvent;
+            Thread[] threads;
+            lock (_lifecycleLock)
             {
-                Id = _balls.Count,
-                X = x,
-                Y = y,
-                Diameter = diameter,
-                Velocity = velocity,
-                R = 0, G = 0, B = 0
-            });
+                if (!_isMoving) return;
+                stopEvent = _stopEvent;
+                threads = _threads;
+                _stopEvent = null;
+                _threads = Array.Empty<Thread>();
+                _isMoving = false;
+            }
+
+            stopEvent?.Set();
+            foreach (Thread t in threads)
+                t.Join(TimeSpan.FromSeconds(2));
+            stopEvent?.Dispose();
         }
 
-        internal void ClearBalls() => _balls.Clear();
+        public override void Dispose()
+        {
+            StopMovement();
+        }
+
+        internal void SeedBall(double x, double y, int diameter, double mass, Vector2D velocity)
+        {
+            lock (_lifecycleLock)
+            {
+                _balls.Add(new BallEntity(
+                    id: _balls.Count,
+                    x: x, y: y,
+                    diameter: diameter,
+                    mass: mass,
+                    velocity: velocity,
+                    r: 0, g: 0, b: 0));
+            }
+        }
+
+        internal void ClearBalls()
+        {
+            lock (_lifecycleLock)
+            {
+                _balls.Clear();
+            }
+        }
+
+        private static void RunBallLoop(BallEntity ball, ManualResetEventSlim stopEvent)
+        {
+            var sw = Stopwatch.StartNew();
+            double lastMs = sw.Elapsed.TotalMilliseconds;
+            while (!stopEvent.IsSet)
+            {
+                if (stopEvent.Wait(StepIntervalMs)) break;
+                double nowMs = sw.Elapsed.TotalMilliseconds;
+                double dtMs = nowMs - lastMs;
+                lastMs = nowMs;
+                ball.Step(dtMs);
+            }
+        }
 
         private double NextNonZeroVelocity()
         {

@@ -18,6 +18,8 @@ namespace Data
         public Vector2D WithX(double x) => new Vector2D(x, Y);
         public Vector2D WithY(double y) => new Vector2D(X, y);
 
+        public static double Dot(Vector2D a, Vector2D b) => a.X * b.X + a.Y * b.Y;
+
         public static Vector2D operator +(Vector2D a, Vector2D b) => new Vector2D(a.X + b.X, a.Y + b.Y);
         public static Vector2D operator -(Vector2D a, Vector2D b) => new Vector2D(a.X - b.X, a.Y - b.Y);
         public static Vector2D operator *(Vector2D v, double s) => new Vector2D(v.X * s, v.Y * s);

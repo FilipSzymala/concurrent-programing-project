@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Logic;
@@ -13,6 +15,7 @@ namespace Presentation.ViewModels;
 public partial class BoardViewModel : ViewModelBase, IDisposable
 {
     private readonly BallLogicApi _logic;
+    private readonly Action<Action> _dispatch;
     private readonly Dictionary<int, BallListItem> _byId = new();
 
     private string _ballsCountText = BallLogicApi.DefaultBallsCount.ToString();
@@ -23,6 +26,7 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     private BallListItem? _selectedBallDetails;
     private double _averageSpeed;
     private string _simulationToggleLabel = "Resume";
+    private int _lastBallsCount;
 
     public ObservableCollection<BallListItem> Balls { get; } = new();
 
@@ -33,7 +37,6 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     public double ScaledBoardHeight => _logic.BoardHeight * Scale;
 
     public int BallsCount => Balls.Count;
-
 
     public double AverageSpeed
     {
@@ -87,54 +90,62 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     public string SimulationToggleLabel
     {
         get => _simulationToggleLabel;
-        set => SetProperty(ref _simulationToggleLabel, value);    
+        set => SetProperty(ref _simulationToggleLabel, value);
     }
 
     public BoardViewModel(BallLogicApi logic)
+        : this(logic, action => Dispatcher.UIThread.Post(action))
+    {
+    }
+
+    internal BoardViewModel(BallLogicApi logic, Action<Action> dispatch)
     {
         _logic = logic;
+        _dispatch = dispatch;
         _logic.BallsChanged += OnBallsChanged;
-        
+
         ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
-    private void Start()
+    private async Task StartAsync()
     {
         int count = ResolveBallsCount(_ballsCountText, out string message);
         StatusMessage = message;
         BallsCountText = count.ToString();
 
-        _logic.Stop();
+        await RunOnThreadAsync(() => _logic.Stop());
+
         _byId.Clear();
         Balls.Clear();
-        
+        _lastBallsCount = 0;
+
         ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
-        
+
         SelectedBallDetails = null;
         _lastSnapshot = null;
-        _logic.Start(count);
+
+        await RunOnThreadAsync(() => _logic.Start(count));
         UpdateToggleLabel();
-        OnPropertyChanged(nameof(BallsCount));
     }
 
     internal static int ResolveBallsCount(string text, out string message)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            message = $"Brak liczby kulek — użyto wartości domyślnej {BallLogicApi.DefaultBallsCount}.";
+            message = $"No count provided — using the default value of {BallLogicApi.DefaultBallsCount}.";
             return BallLogicApi.DefaultBallsCount;
         }
 
         if (!int.TryParse(text.Trim(), out int parsed))
         {
-            message = $"\"{text}\" to nie liczba — użyto wartości domyślnej {BallLogicApi.DefaultBallsCount}.";
+            message = $"\"{text}\" is not a number — using the default value of {BallLogicApi.DefaultBallsCount}.";
             return BallLogicApi.DefaultBallsCount;
         }
 
         if (parsed < BallLogicApi.MinBallsCount)
         {
-            message = $"Minimalna liczba kulek to {BallLogicApi.MinBallsCount} — wartość została podniesiona.";
+            message = $"Minimum is {BallLogicApi.MinBallsCount} balls — value was raised.";
             return BallLogicApi.MinBallsCount;
         }
 
@@ -143,26 +154,26 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private void Stop() => _logic.Stop();
+    private Task StopAsync() => RunOnThreadAsync(() => _logic.Stop());
 
     [RelayCommand]
-    private void Resume() => _logic.Resume();
+    private Task ResumeAsync() => RunOnThreadAsync(() => _logic.Resume());
 
     [RelayCommand(CanExecute = nameof(CanToggleMoveSimulation))]
-    private void ToggleMoveSimulation()
+    private async Task ToggleMoveSimulationAsync()
     {
-        _logic.Toggle();
+        await RunOnThreadAsync(() => _logic.Toggle());
         UpdateToggleLabel();
     }
-    
+
     private bool CanToggleMoveSimulation()
     {
         return Balls.Count > 0;
     }
-    
+
     private void UpdateToggleLabel()
     {
-        SimulationToggleLabel = _logic.IsRunning ? "Stop" : "Resume";
+        SimulationToggleLabel = _logic.IsRunning ? "Pause" : "Resume";
     }
 
     [RelayCommand]
@@ -173,16 +184,16 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
 
     private void OnBallsChanged(object? sender, IReadOnlyList<IBallStatus> snapshot)
     {
-        Dispatcher.UIThread.Post(() => Apply(snapshot));
+        _dispatch(() => Apply(snapshot));
     }
 
     private void Apply(IReadOnlyList<IBallStatus> snapshot)
     {
         _lastSnapshot = snapshot;
         double scale = Scale;
-        
+
         double totalSpeed = 0;
-        
+
         bool isNewList = snapshot.Count > 0 && Balls.Count == 0;
 
         foreach (var status in snapshot)
@@ -196,14 +207,20 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(BallsCount));
             }
             item.UpdateFrom(status, scale);
-            
+
             double speed = Math.Sqrt(status.VelocityX * status.VelocityX + status.VelocityY * status.VelocityY);
             totalSpeed += speed;
         }
-        
+
         if (isNewList)
         {
             ToggleMoveSimulationCommand.NotifyCanExecuteChanged();
+        }
+
+        if (Balls.Count != _lastBallsCount)
+        {
+            _lastBallsCount = Balls.Count;
+            OnPropertyChanged(nameof(BallsCount));
         }
 
         if (snapshot.Count > 0)
@@ -220,6 +237,25 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     {
         if (_lastSnapshot != null)
             Apply(_lastSnapshot);
+    }
+
+    private static Task RunOnThreadAsync(Action work)
+    {
+        var tcs = new TaskCompletionSource();
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                work();
+                tcs.SetResult();
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        }) { IsBackground = true };
+        thread.Start();
+        return tcs.Task;
     }
 
     public void Dispose()

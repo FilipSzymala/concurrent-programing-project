@@ -11,6 +11,7 @@ public class BallListItem : INotifyPropertyChanged
     private double _x;
     private double _y;
     private double _diameter;
+    private double _mass;
     private Color _color;
     private double _velocityX;
     private double _velocityY;
@@ -39,12 +40,18 @@ public class BallListItem : INotifyPropertyChanged
         private set { if (_diameter != value) { _diameter = value; OnPropertyChanged(); } }
     }
 
+    public double Mass
+    {
+        get => _mass;
+        private set { if (_mass != value) { _mass = value; OnPropertyChanged(); } }
+    }
+
     public Color Color
     {
         get => _color;
         private set { if (_color != value) { _color = value; OnPropertyChanged(); } }
     }
-    
+
     public double VelocityX
     {
         get => _velocityX;
@@ -63,6 +70,7 @@ public class BallListItem : INotifyPropertyChanged
         X = status.X * scale;
         Y = status.Y * scale;
         Diameter = status.Diameter * scale;
+        Mass = status.Mass;
         Color = Color.FromRgb(status.R, status.G, status.B);
         VelocityX = status.VelocityX;
         VelocityY = status.VelocityY;

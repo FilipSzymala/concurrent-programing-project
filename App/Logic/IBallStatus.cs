@@ -6,6 +6,7 @@ namespace Logic
         double X { get; }
         double Y { get; }
         int Diameter { get; }
+        double Mass { get; }
         double VelocityX { get; }
         double VelocityY { get; }
         byte R { get; }

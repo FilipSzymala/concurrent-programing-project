@@ -93,16 +93,19 @@ public sealed class BallsServiceTests
     }
 
     [TestMethod]
-    public void TimerLoop_UpdatesPositionsOverTime()
+    public void PhysicsLoop_RaisesBallsChangedRepeatedly()
     {
         var data = new FakeBallData(500, 500);
         using var logic = BallLogicApi.CreateApi(data);
 
+        int events = 0;
+        logic.BallsChanged += (_, _) => Interlocked.Increment(ref events);
+
         logic.Start(2);
-        Thread.Sleep(150);
+        Thread.Sleep(200);
         logic.Stop();
 
-        Assert.IsGreaterThan(0, data.UpdateCalls);
+        Assert.IsGreaterThan(1, events);
     }
 
     [TestMethod]
@@ -120,20 +123,21 @@ public sealed class BallsServiceTests
     }
 
     [TestMethod]
-    public void Resume_AfterStop_ContinuesUpdatingPositions()
+    public void Resume_AfterStop_ContinuesRaisingEvents()
     {
         var data = new FakeBallData(500, 500);
         using var logic = BallLogicApi.CreateApi(data);
 
         logic.Start(3);
         logic.Stop();
-        int callsAfterStop = data.UpdateCalls;
 
+        int eventsAfterResume = 0;
+        logic.BallsChanged += (_, _) => Interlocked.Increment(ref eventsAfterResume);
         logic.Resume();
-        Thread.Sleep(100);
+        Thread.Sleep(150);
         logic.Stop();
 
-        Assert.IsGreaterThan(callsAfterStop, data.UpdateCalls);
+        Assert.IsGreaterThan(0, eventsAfterResume);
     }
 
     [TestMethod]
@@ -145,7 +149,45 @@ public sealed class BallsServiceTests
         logic.Resume();
 
         Assert.IsFalse(logic.IsRunning);
-        Assert.AreEqual(0, data.UpdateCalls);
+    }
+
+    [TestMethod]
+    public void Toggle_FromStoppedToRunning_StartsLoop()
+    {
+        var data = new FakeBallData(500, 500);
+        using var logic = BallLogicApi.CreateApi(data);
+
+        logic.Start(3);
+        logic.Stop();
+        Assert.IsFalse(logic.IsRunning);
+
+        logic.Toggle();
+        Assert.IsTrue(logic.IsRunning);
+        logic.Stop();
+    }
+
+    [TestMethod]
+    public void Toggle_FromRunningToStopped_HaltsLoop()
+    {
+        var data = new FakeBallData(500, 500);
+        using var logic = BallLogicApi.CreateApi(data);
+
+        logic.Start(3);
+        Assert.IsTrue(logic.IsRunning);
+
+        logic.Toggle();
+        Assert.IsFalse(logic.IsRunning);
+    }
+
+    [TestMethod]
+    public void Toggle_WithoutBalls_DoesNotStart()
+    {
+        var data = new FakeBallData(500, 500);
+        using var logic = BallLogicApi.CreateApi(data);
+
+        logic.Toggle();
+
+        Assert.IsFalse(logic.IsRunning);
     }
 
     [TestMethod]
@@ -165,6 +207,22 @@ public sealed class BallsServiceTests
     }
 
     [TestMethod]
+    public void BallsChanged_SnapshotForwardsMass()
+    {
+        var data = new FakeBallData(500, 500);
+        using var logic = BallLogicApi.CreateApi(data);
+
+        IReadOnlyList<IBallStatus>? snapshot = null;
+        logic.BallsChanged += (_, s) => snapshot ??= s;
+
+        logic.Start(3);
+
+        Assert.IsNotNull(snapshot);
+        foreach (var b in snapshot!)
+            Assert.IsGreaterThan(0, b.Mass);
+    }
+
+    [TestMethod]
     public void Dispose_StopsSimulation()
     {
         var data = new FakeBallData(500, 500);
@@ -176,7 +234,7 @@ public sealed class BallsServiceTests
         Assert.IsFalse(logic.IsRunning);
     }
 
-    private sealed class FakeBallData : BallDataApi
+    internal sealed class FakeBallData : BallDataApi
     {
         private readonly List<IBallData> _balls = new();
         public FakeBallData(int w, int h) { BoardWidth = w; BoardHeight = h; }
@@ -184,30 +242,60 @@ public sealed class BallsServiceTests
         public override int BoardHeight { get; }
         public override IReadOnlyList<IBallData> Balls => _balls;
         public int LastGeneratedCount { get; private set; }
-        public int UpdateCalls { get; private set; }
+        public bool MovementStarted { get; private set; }
+        public bool MovementStopped { get; private set; }
 
         public override void GenerateBalls(int count)
         {
             LastGeneratedCount = count;
             _balls.Clear();
             for (int i = 0; i < count; i++)
-                _balls.Add(new FakeBall { Id = i, Diameter = 10 });
+                _balls.Add(new FakeBall(i, 10, 2.0));
         }
 
-        public override void UpdatePositions() => UpdateCalls++;
+        public override void StartMovement() => MovementStarted = true;
+        public override void StopMovement() => MovementStopped = true;
+        public override void Dispose() { }
+    }
 
-        private sealed class FakeBall : IBallData
+    internal sealed class FakeBall : IBallData
+    {
+        private readonly object _sync = new();
+        private double _x;
+        private double _y;
+        private Vector2D _velocity;
+
+        public FakeBall(int id, int diameter, double mass)
         {
-            public int Id { get; set; }
-            public double X { get; set; }
-            public double Y { get; set; }
-            public int Diameter { get; set; }
-            public Vector2D Velocity { get; set; }
-            public double VelocityX => Velocity.X;
-            public double VelocityY => Velocity.Y;
-            public byte R { get; set; }
-            public byte G { get; set; }
-            public byte B { get; set; }
+            Id = id;
+            Diameter = diameter;
+            Mass = mass;
+            _velocity = new Vector2D(1, 1);
+        }
+
+        public int Id { get; }
+        public int Diameter { get; }
+        public double Mass { get; }
+        public byte R => 0;
+        public byte G => 0;
+        public byte B => 0;
+
+        public double X { get { lock (_sync) { return _x; } } }
+        public double Y { get { lock (_sync) { return _y; } } }
+        public Vector2D Velocity { get { lock (_sync) { return _velocity; } } }
+        public BallSnapshot Snapshot
+        {
+            get { lock (_sync) { return new BallSnapshot(_x, _y, _velocity); } }
+        }
+
+        public void ApplyChange(double newX, double newY, Vector2D newVelocity)
+        {
+            lock (_sync) { _x = newX; _y = newY; _velocity = newVelocity; }
+        }
+
+        public void SetVelocity(Vector2D newVelocity)
+        {
+            lock (_sync) { _velocity = newVelocity; }
         }
     }
 }

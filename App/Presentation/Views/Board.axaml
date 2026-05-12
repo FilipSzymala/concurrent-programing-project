@@ -10,42 +10,43 @@
 	x:DataType="vm:BoardViewModel">
 
 	<Grid helpers:SizeObserver.Observe="True">
-	<Border BorderBrush="Black" BorderThickness="2" Background="White"
-	        HorizontalAlignment="Center" VerticalAlignment="Center">
-		<ItemsControl ItemsSource="{Binding Balls}"
-		              Width="{Binding ScaledBoardWidth}"
-		              Height="{Binding ScaledBoardHeight}"
-		              ClipToBounds="True">
+		<Border BorderBrush="#30363D" BorderThickness="1" Background="#F6F8FA"
+		        ClipToBounds="True"
+		        HorizontalAlignment="Center" VerticalAlignment="Center">
+			<ItemsControl ItemsSource="{Binding Balls}"
+			              Width="{Binding ScaledBoardWidth}"
+			              Height="{Binding ScaledBoardHeight}"
+			              ClipToBounds="True">
 
-			<ItemsControl.ItemsPanel>
-				<ItemsPanelTemplate>
-					<Canvas Background="Transparent" />
-				</ItemsPanelTemplate>
-			</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<Canvas Background="Transparent" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
 
-			<ItemsControl.ItemTemplate>
-				<DataTemplate x:DataType="models:BallListItem">
-					<Ellipse Width="{Binding Diameter}"
-					         Height="{Binding Diameter}">
-						<Ellipse.Fill>
-							<SolidColorBrush Color="{Binding Color}" />
-						</Ellipse.Fill>
-						<i:Interaction.Behaviors>
-							<ia:EventTriggerBehavior EventName="PointerPressed">
-								<ia:InvokeCommandAction Command="{Binding $parent[UserControl].((vm:BoardViewModel)DataContext).ShowBallDetailsCommand}" CommandParameter="{Binding}" />
-							</ia:EventTriggerBehavior>
-						</i:Interaction.Behaviors>
-					</Ellipse>
-				</DataTemplate>
-			</ItemsControl.ItemTemplate>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="models:BallListItem">
+						<Ellipse Width="{Binding Diameter}"
+						         Height="{Binding Diameter}">
+							<Ellipse.Fill>
+								<SolidColorBrush Color="{Binding Color}" />
+							</Ellipse.Fill>
+							<i:Interaction.Behaviors>
+								<ia:EventTriggerBehavior EventName="PointerPressed">
+									<ia:InvokeCommandAction Command="{Binding $parent[UserControl].((vm:BoardViewModel)DataContext).ShowBallDetailsCommand}" CommandParameter="{Binding}" />
+								</ia:EventTriggerBehavior>
+							</i:Interaction.Behaviors>
+						</Ellipse>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
 
-			<ItemsControl.Styles>
-				<Style Selector="ItemsControl > ContentPresenter" x:DataType="models:BallListItem">
-					<Setter Property="Canvas.Left" Value="{Binding X}" />
-					<Setter Property="Canvas.Top" Value="{Binding Y}" />
-				</Style>
-			</ItemsControl.Styles>
-		</ItemsControl>
-	</Border>
+				<ItemsControl.Styles>
+					<Style Selector="ItemsControl > ContentPresenter" x:DataType="models:BallListItem">
+						<Setter Property="Canvas.Left" Value="{Binding X}" />
+						<Setter Property="Canvas.Top" Value="{Binding Y}" />
+					</Style>
+				</ItemsControl.Styles>
+			</ItemsControl>
+		</Border>
 	</Grid>
 </UserControl>

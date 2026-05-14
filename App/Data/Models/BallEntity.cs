@@ -1,11 +1,16 @@
+using System;
+
 namespace Data.Models
 {
     internal sealed class BallEntity : IBallData
     {
+        public const double MaxAllowedSpeed = 100.0;
+
         private readonly object _sync = new object();
         private double _x;
         private double _y;
         private Vector2D _velocity;
+        private int _stepCount;
 
         public BallEntity(int id, double x, double y, int diameter, double mass,
                           Vector2D velocity, byte r, byte g, byte b)
@@ -56,6 +61,7 @@ namespace Data.Models
 
         public void ApplyChange(double newX, double newY, Vector2D newVelocity)
         {
+            EnsureVelocityWithinLimit(newVelocity);
             lock (_sync)
             {
                 _x = newX;
@@ -66,10 +72,20 @@ namespace Data.Models
 
         public void SetVelocity(Vector2D newVelocity)
         {
+            EnsureVelocityWithinLimit(newVelocity);
             lock (_sync)
             {
                 _velocity = newVelocity;
             }
+        }
+
+        private static void EnsureVelocityWithinLimit(Vector2D velocity)
+        {
+            double speedSquared = velocity.X * velocity.X + velocity.Y * velocity.Y;
+            if (speedSquared > MaxAllowedSpeed * MaxAllowedSpeed)
+                throw new ArgumentOutOfRangeException(
+                    nameof(velocity),
+                    $"Speed magnitude {Math.Sqrt(speedSquared):F2} exceeds the allowed maximum ({MaxAllowedSpeed}).");
         }
 
         public void Step(double dtMs)
@@ -80,7 +96,13 @@ namespace Data.Models
                 double scale = dtMs / nominalMs;
                 _x += _velocity.X * scale;
                 _y += _velocity.Y * scale;
+                _stepCount++;
             }
+        }
+
+        internal int StepCount
+        {
+            get { lock (_sync) { return _stepCount; } }
         }
     }
 }

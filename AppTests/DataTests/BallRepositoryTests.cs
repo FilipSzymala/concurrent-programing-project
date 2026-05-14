@@ -235,7 +235,10 @@ public class BallRepositoryTests
         var writer = new Thread(() =>
         {
             for (int i = 0; i < 5000; i++)
-                ball.ApplyChange(i, i * 2, new Vector2D(i, -i));
+            {
+                int wrapped = i % 60;
+                ball.ApplyChange(wrapped, wrapped * 2, new Vector2D(wrapped, -wrapped));
+            }
             writerDone = true;
         }) { IsBackground = true };
 
@@ -263,6 +266,146 @@ public class BallRepositoryTests
         reader.Join();
 
         if (readerFailure != null) throw readerFailure;
+    }
+
+    [TestMethod]
+    public void ApplyChange_VelocityAboveMaxAllowed_ThrowsArgumentOutOfRange()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 50, diameter: 20, mass: 5, velocity: new Vector2D(1, 1));
+        var ball = repo.Balls[0];
+
+        var crazy = new Vector2D(BallEntity.MaxAllowedSpeed + 1, 0);
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => ball.ApplyChange(50, 50, crazy));
+    }
+
+    [TestMethod]
+    public void SetVelocity_AboveMaxAllowed_ThrowsArgumentOutOfRange()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 50, diameter: 20, mass: 5, velocity: new Vector2D(1, 1));
+        var ball = repo.Balls[0];
+
+        var crazy = new Vector2D(0, BallEntity.MaxAllowedSpeed + 0.01);
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => ball.SetVelocity(crazy));
+    }
+
+    [TestMethod]
+    public void SetVelocity_DiagonalCombinedMagnitudeAboveLimit_Throws()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 50, diameter: 20, mass: 5, velocity: new Vector2D(1, 1));
+        var ball = repo.Balls[0];
+
+        double component = BallEntity.MaxAllowedSpeed * 0.9;
+        var diagonal = new Vector2D(component, component);
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => ball.SetVelocity(diagonal));
+    }
+
+    [TestMethod]
+    public void SetVelocity_AtBoundary_Accepted()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 50, y: 50, diameter: 20, mass: 5, velocity: new Vector2D(1, 1));
+        var ball = repo.Balls[0];
+
+        ball.SetVelocity(new Vector2D(BallEntity.MaxAllowedSpeed, 0));
+
+        Assert.AreEqual(BallEntity.MaxAllowedSpeed, ball.Velocity.X);
+    }
+
+    [TestMethod]
+    public void Stopwatch_IsBackedByHighResolutionPerformanceCounter()
+    {
+        Assert.IsTrue(System.Diagnostics.Stopwatch.IsHighResolution);
+        Assert.IsGreaterThan(1_000_000L, System.Diagnostics.Stopwatch.Frequency);
+    }
+
+    [TestMethod]
+    public void Step_TimedWithHighResolutionStopwatch_MotionScalesLinearlyWithDt()
+    {
+        var repo = new BallRepository(200, 200);
+        repo.SeedBall(x: 0, y: 0, diameter: 20, mass: 1, velocity: new Vector2D(2, 0));
+        var ball = (BallEntity)repo.Balls[0];
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        ball.Step(16);
+        long oneFrameTicks = sw.ElapsedTicks;
+
+        sw.Restart();
+        ball.Step(32);
+        long twoFrameTicks = sw.ElapsedTicks;
+
+        Assert.IsGreaterThan(0L, oneFrameTicks);
+        Assert.IsGreaterThan(0L, twoFrameTicks);
+        Assert.AreEqual(2 + 4, ball.X, 1e-9);
+    }
+
+    [TestMethod]
+    public void StartMovement_WithBarrier_All100BallsStepExactlySameNumberOfTimes()
+    {
+        using var api = BallDataApi.CreateApi(800, 800);
+        api.GenerateBalls(100);
+
+        int participants = api.FrameParticipants + 1;
+        using var barrier = new Barrier(participants);
+
+        api.StartMovement(barrier);
+
+        const int rounds = 30;
+        for (int r = 0; r < rounds; r++)
+        {
+            barrier.SignalAndWait();
+            barrier.SignalAndWait();
+        }
+
+        api.StopMovement();
+
+        var counts = api.Balls.Cast<BallEntity>().Select(b => b.StepCount).ToList();
+        int min = counts.Min();
+        int max = counts.Max();
+
+        Assert.AreEqual(rounds, min);
+        Assert.AreEqual(rounds, max);
+        Assert.IsLessThanOrEqualTo(1, max - min);
+    }
+
+    [TestMethod]
+    public void StartMovement_With100Balls_AllThreadsGetFairCpuTime()
+    {
+        using var api = BallDataApi.CreateApi(1000, 1000);
+        api.GenerateBalls(100);
+
+        api.StartMovement();
+        Thread.Sleep(1000);
+        api.StopMovement();
+
+        var counts = api.Balls.Cast<BallEntity>().Select(b => b.StepCount).ToList();
+        int min = counts.Min();
+        int max = counts.Max();
+
+        Assert.IsGreaterThan(0, min);
+        Assert.IsLessThanOrEqualTo(2 * min, max);
+    }
+
+    [TestMethod]
+    public void StartMovement_AllBallsAdvanceAtLeastOnce_NoStarvation()
+    {
+        using var api = BallDataApi.CreateApi(1000, 1000);
+        api.GenerateBalls(100);
+
+        api.StartMovement();
+        Thread.Sleep(500);
+        api.StopMovement();
+
+        foreach (var ball in api.Balls.Cast<BallEntity>())
+            Assert.IsGreaterThan(0, ball.StepCount);
     }
 
     [TestMethod]

@@ -223,6 +223,22 @@ public sealed class BallsServiceTests
     }
 
     [TestMethod]
+    public void PhysicsLoop_RecordsTickDurationViaHighResolutionStopwatch()
+    {
+        var data = new FakeBallData(500, 500);
+        using var logic = BallLogicApi.CreateApi(data);
+
+        logic.Start(3);
+        Thread.Sleep(200);
+        double tick = logic.LastTickDurationMs;
+        logic.Stop();
+
+        Assert.IsTrue(System.Diagnostics.Stopwatch.IsHighResolution);
+        Assert.IsGreaterThan(0.0, tick);
+        Assert.AreEqual(16, logic.PhysicsBudgetMs);
+    }
+
+    [TestMethod]
     public void Dispose_StopsSimulation()
     {
         var data = new FakeBallData(500, 500);
@@ -241,6 +257,7 @@ public sealed class BallsServiceTests
         public override int BoardWidth { get; }
         public override int BoardHeight { get; }
         public override IReadOnlyList<IBallData> Balls => _balls;
+        public override int FrameParticipants => 0;
         public int LastGeneratedCount { get; private set; }
         public bool MovementStarted { get; private set; }
         public bool MovementStopped { get; private set; }
@@ -253,7 +270,7 @@ public sealed class BallsServiceTests
                 _balls.Add(new FakeBall(i, 10, 2.0));
         }
 
-        public override void StartMovement() => MovementStarted = true;
+        public override void StartMovement(System.Threading.Barrier frameBarrier = null) => MovementStarted = true;
         public override void StopMovement() => MovementStopped = true;
         public override void Dispose() { }
     }

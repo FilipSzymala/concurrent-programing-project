@@ -114,7 +114,7 @@
 
                     <Rectangle Height="1" Fill="#21262D" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="28" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <TextBlock Text="Balls" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Board.BallsCount}" Foreground="#F0F6FC"
@@ -124,6 +124,38 @@
                             <TextBlock Text="Avg speed" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Board.AverageSpeed, StringFormat=\{0:F2\}}"
                                        Foreground="#F0F6FC" FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Energy" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Board.TotalKineticEnergy, StringFormat=\{0:F0\}}"
+                                       Foreground="#F0F6FC" FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Momentum" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Board.TotalMomentum, StringFormat=\{0:F2\}}"
+                                       Foreground="#F0F6FC" FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Tick" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Board.PhysicsTickMs, StringFormat=\{0:F2\} ms}"
+                                       Foreground="#F0F6FC" FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Load" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Board.PhysicsLoadPercent, StringFormat=\{0:F0\}%}"
+                                       Foreground="{Binding Board.LoadBrush}"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="FPS" Foreground="#8B949E" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Board.ActualFps, StringFormat=\{0:F0\}}"
+                                       Foreground="{Binding Board.FpsBrush}"
+                                       FontSize="14" FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Text="{Binding Board.StatusMessage}"

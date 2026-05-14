@@ -279,6 +279,9 @@ public sealed class BoardViewModelTests
         public override int BoardWidth { get; }
         public override int BoardHeight { get; }
         public override bool IsRunning { get; }
+        public override double LastTickDurationMs => 0;
+        public override double LastFrameIntervalMs => 16;
+        public override double PhysicsBudgetMs => 16;
         public override event EventHandler<IReadOnlyList<IBallStatus>>? BallsChanged;
 
         public int StartCalls { get; private set; }

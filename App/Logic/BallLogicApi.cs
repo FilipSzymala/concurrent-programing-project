@@ -12,6 +12,9 @@ namespace Logic
         public abstract int BoardWidth { get; }
         public abstract int BoardHeight { get; }
         public abstract bool IsRunning { get; }
+        public abstract double LastTickDurationMs { get; }
+        public abstract double LastFrameIntervalMs { get; }
+        public abstract double PhysicsBudgetMs { get; }
 
         public abstract event EventHandler<IReadOnlyList<IBallStatus>> BallsChanged;
 

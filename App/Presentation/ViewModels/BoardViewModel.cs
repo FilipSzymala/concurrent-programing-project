@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Logic;
@@ -14,6 +15,10 @@ namespace Presentation.ViewModels;
 
 public partial class BoardViewModel : ViewModelBase, IDisposable
 {
+    private static readonly IBrush GreenBrush = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
+    private static readonly IBrush YellowBrush = new SolidColorBrush(Color.FromRgb(0xD2, 0x99, 0x22));
+    private static readonly IBrush RedBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
+
     private readonly BallLogicApi _logic;
     private readonly Action<Action> _dispatch;
     private readonly Dictionary<int, BallListItem> _byId = new();
@@ -25,6 +30,13 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<IBallStatus>? _lastSnapshot;
     private BallListItem? _selectedBallDetails;
     private double _averageSpeed;
+    private double _totalKineticEnergy;
+    private double _totalMomentum;
+    private double _physicsTickMs;
+    private double _physicsLoadPercent;
+    private double _actualFps;
+    private IBrush _loadBrush = GreenBrush;
+    private IBrush _fpsBrush = GreenBrush;
     private string _simulationToggleLabel = "Resume";
     private int _lastBallsCount;
 
@@ -42,6 +54,48 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     {
         get => _averageSpeed;
         private set => SetProperty(ref _averageSpeed, value);
+    }
+
+    public double TotalKineticEnergy
+    {
+        get => _totalKineticEnergy;
+        private set => SetProperty(ref _totalKineticEnergy, value);
+    }
+
+    public double TotalMomentum
+    {
+        get => _totalMomentum;
+        private set => SetProperty(ref _totalMomentum, value);
+    }
+
+    public double PhysicsTickMs
+    {
+        get => _physicsTickMs;
+        private set => SetProperty(ref _physicsTickMs, value);
+    }
+
+    public double PhysicsLoadPercent
+    {
+        get => _physicsLoadPercent;
+        private set => SetProperty(ref _physicsLoadPercent, value);
+    }
+
+    public double ActualFps
+    {
+        get => _actualFps;
+        private set => SetProperty(ref _actualFps, value);
+    }
+
+    public IBrush LoadBrush
+    {
+        get => _loadBrush;
+        private set => SetProperty(ref _loadBrush, value);
+    }
+
+    public IBrush FpsBrush
+    {
+        get => _fpsBrush;
+        private set => SetProperty(ref _fpsBrush, value);
     }
 
     public BallListItem? SelectedBallDetails
@@ -193,6 +247,9 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         double scale = Scale;
 
         double totalSpeed = 0;
+        double totalEnergy = 0;
+        double sumPx = 0;
+        double sumPy = 0;
 
         bool isNewList = snapshot.Count > 0 && Balls.Count == 0;
 
@@ -208,8 +265,13 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
             }
             item.UpdateFrom(status, scale);
 
-            double speed = Math.Sqrt(status.VelocityX * status.VelocityX + status.VelocityY * status.VelocityY);
-            totalSpeed += speed;
+            double vx = status.VelocityX;
+            double vy = status.VelocityY;
+            double v2 = vx * vx + vy * vy;
+            totalSpeed += Math.Sqrt(v2);
+            totalEnergy += 0.5 * status.Mass * v2;
+            sumPx += status.Mass * vx;
+            sumPy += status.Mass * vy;
         }
 
         if (isNewList)
@@ -226,11 +288,42 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         if (snapshot.Count > 0)
         {
             AverageSpeed = totalSpeed / snapshot.Count;
+            TotalKineticEnergy = totalEnergy;
+            TotalMomentum = Math.Sqrt(sumPx * sumPx + sumPy * sumPy);
         }
         else
         {
             AverageSpeed = 0;
+            TotalKineticEnergy = 0;
+            TotalMomentum = 0;
         }
+
+        double tickMs = _logic.LastTickDurationMs;
+        double budgetMs = _logic.PhysicsBudgetMs;
+        double frameMs = _logic.LastFrameIntervalMs;
+        double loadPct = budgetMs > 0 ? tickMs / budgetMs * 100.0 : 0;
+        double fps = frameMs > 0 ? 1000.0 / frameMs : 0;
+
+        PhysicsTickMs = tickMs;
+        PhysicsLoadPercent = loadPct;
+        ActualFps = fps;
+        LoadBrush = PickLoadBrush(loadPct);
+        FpsBrush = PickFpsBrush(fps);
+    }
+
+    private static IBrush PickLoadBrush(double loadPercent)
+    {
+        if (loadPercent >= 100) return RedBrush;
+        if (loadPercent >= 70) return YellowBrush;
+        return GreenBrush;
+    }
+
+    private static IBrush PickFpsBrush(double fps)
+    {
+        if (fps <= 0) return GreenBrush;
+        if (fps < 30) return RedBrush;
+        if (fps < 55) return YellowBrush;
+        return GreenBrush;
     }
 
     private void ReapplySnapshot()

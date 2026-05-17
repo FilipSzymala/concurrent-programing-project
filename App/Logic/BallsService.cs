@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using Data;
 using Logic.Physics;
@@ -12,10 +13,14 @@ namespace Logic
 
         private readonly BallDataApi _data;
         private readonly object _lifecycleLock = new object();
+        private readonly object _collisionLock = new object();
 
         private ManualResetEventSlim _stopEvent;
+        private Barrier _frameBarrier;
         private Thread _physicsThread;
         private volatile bool _running;
+        private long _lastTickTicks;
+        private long _lastFrameIntervalTicks;
 
         public BallsService(BallDataApi data)
         {
@@ -25,6 +30,11 @@ namespace Logic
         public override int BoardWidth => _data.BoardWidth;
         public override int BoardHeight => _data.BoardHeight;
         public override bool IsRunning => _running;
+        public override double LastTickDurationMs =>
+            Interlocked.Read(ref _lastTickTicks) * 1000.0 / Stopwatch.Frequency;
+        public override double LastFrameIntervalMs =>
+            Interlocked.Read(ref _lastFrameIntervalTicks) * 1000.0 / Stopwatch.Frequency;
+        public override double PhysicsBudgetMs => PhysicsTickMs;
         public override event EventHandler<IReadOnlyList<IBallStatus>> BallsChanged;
 
         public override void Start(int ballsCount)
@@ -101,11 +111,14 @@ namespace Logic
 
         private void StartUnlocked()
         {
+            int dataParticipants = _data.FrameParticipants;
+            Barrier barrier = dataParticipants > 0 ? new Barrier(dataParticipants + 1) : null;
+            _frameBarrier = barrier;
             _stopEvent = new ManualResetEventSlim(false);
-            ManualResetEventSlim stopEvent = _stopEvent;
-            _data.StartMovement();
+            ManualResetEventSlim stop = _stopEvent;
+            _data.StartMovement(barrier);
             _running = true;
-            _physicsThread = new Thread(() => PhysicsLoop(stopEvent))
+            _physicsThread = new Thread(() => PhysicsLoop(barrier, stop))
             {
                 IsBackground = true,
                 Name = "PhysicsLoop"
@@ -118,26 +131,69 @@ namespace Logic
             if (!_running && _stopEvent == null) return;
 
             ManualResetEventSlim stopEvent = _stopEvent;
+            Barrier barrier = _frameBarrier;
             Thread thread = _physicsThread;
             _stopEvent = null;
+            _frameBarrier = null;
             _physicsThread = null;
             _running = false;
 
             stopEvent?.Set();
             _data.StopMovement();
             thread?.Join(TimeSpan.FromSeconds(2));
+            barrier?.Dispose();
             stopEvent?.Dispose();
         }
 
-        private void PhysicsLoop(ManualResetEventSlim stopEvent)
+        private void PhysicsLoop(Barrier barrier, ManualResetEventSlim stop)
         {
-            while (!stopEvent.IsSet)
+            var sw = new Stopwatch();
+            long prevRaiseTicks = 0;
+            try
             {
-                ApplyPhysics();
-                List<IBallStatus> snapshot = CreateSnapshot();
-                RaiseChanged(snapshot);
-                if (stopEvent.Wait(PhysicsTickMs)) break;
+                while (!stop.IsSet)
+                {
+                    if (barrier != null)
+                    {
+                        if (!TryBarrier(barrier, stop)) break;
+                        if (!TryBarrier(barrier, stop)) break;
+                    }
+                    if (stop.IsSet) break;
+
+                    sw.Restart();
+                    lock (_collisionLock)
+                    {
+                        ApplyPhysics();
+                    }
+                    List<IBallStatus> snapshot = CreateSnapshot();
+                    long raiseTicks = Stopwatch.GetTimestamp();
+                    if (prevRaiseTicks > 0)
+                        Interlocked.Exchange(ref _lastFrameIntervalTicks, raiseTicks - prevRaiseTicks);
+                    prevRaiseTicks = raiseTicks;
+                    RaiseChanged(snapshot);
+                    sw.Stop();
+                    Interlocked.Exchange(ref _lastTickTicks, sw.ElapsedTicks);
+
+                    if (stop.Wait(PhysicsTickMs)) break;
+                }
             }
+            catch (OperationCanceledException) { }
+            catch (BarrierPostPhaseException) { }
+            catch (ObjectDisposedException) { }
+        }
+
+        private static bool TryBarrier(Barrier barrier, ManualResetEventSlim stop)
+        {
+            try
+            {
+                while (!stop.IsSet)
+                {
+                    if (barrier.SignalAndWait(50)) return true;
+                }
+                return false;
+            }
+            catch (BarrierPostPhaseException) { return false; }
+            catch (ObjectDisposedException) { return false; }
         }
 
         internal void ApplyPhysics()

@@ -9,7 +9,7 @@ namespace Logic
 {
     internal sealed class BallsService : BallLogicApi
     {
-        private const int PhysicsTickMs = 16;
+        private const int HeartbeatIntervalMs = 16;
 
         private readonly BallDataApi _data;
         private readonly object _lifecycleLock = new object();
@@ -17,8 +17,9 @@ namespace Logic
 
         private ManualResetEventSlim _stopEvent;
         private Barrier _frameBarrier;
-        private Thread _physicsThread;
+        private Thread _heartbeatThread;
         private volatile bool _running;
+        private long _lastFrameTicks;
         private long _lastTickTicks;
         private long _lastFrameIntervalTicks;
 
@@ -34,7 +35,7 @@ namespace Logic
             Interlocked.Read(ref _lastTickTicks) * 1000.0 / Stopwatch.Frequency;
         public override double LastFrameIntervalMs =>
             Interlocked.Read(ref _lastFrameIntervalTicks) * 1000.0 / Stopwatch.Frequency;
-        public override double PhysicsBudgetMs => PhysicsTickMs;
+        public override double PhysicsBudgetMs => HeartbeatIntervalMs;
         public override event EventHandler<IReadOnlyList<IBallStatus>> BallsChanged;
 
         public override void Start(int ballsCount)
@@ -109,21 +110,38 @@ namespace Logic
             _data.Dispose();
         }
 
+        // Two execution modes:
+        //   - N > 0 balls: build a Barrier(N, OnFrameRendezvous). Each ball signals
+        //     once per frame; when the last arrives, OnFrameRendezvous runs in that
+        //     thread while the others are blocked → physics happens lock-free.
+        //   - N == 0 (test/empty fake data): no barrier, run a heartbeat thread so
+        //     BallsChanged is still raised on a timer for subscribers.
         private void StartUnlocked()
         {
-            int dataParticipants = _data.FrameParticipants;
-            Barrier barrier = dataParticipants > 0 ? new Barrier(dataParticipants + 1) : null;
-            _frameBarrier = barrier;
+            _lastFrameTicks = 0;
             _stopEvent = new ManualResetEventSlim(false);
             ManualResetEventSlim stop = _stopEvent;
-            _data.StartMovement(barrier);
-            _running = true;
-            _physicsThread = new Thread(() => PhysicsLoop(barrier, stop))
+
+            int participants = _data.FrameParticipants;
+            if (participants > 0)
             {
-                IsBackground = true,
-                Name = "PhysicsLoop"
-            };
-            _physicsThread.Start();
+                _frameBarrier = new Barrier(participants, _ => EmitFrame(applyCollisions: true));
+                _data.StartMovement(_frameBarrier);
+                _heartbeatThread = null;
+            }
+            else
+            {
+                _frameBarrier = null;
+                _data.StartMovement(null);
+                _heartbeatThread = new Thread(() => HeartbeatLoop(stop))
+                {
+                    IsBackground = true,
+                    Name = "BallsServiceHeartbeat"
+                };
+                _heartbeatThread.Start();
+            }
+
+            _running = true;
         }
 
         private void StopUnlocked()
@@ -132,68 +150,57 @@ namespace Logic
 
             ManualResetEventSlim stopEvent = _stopEvent;
             Barrier barrier = _frameBarrier;
-            Thread thread = _physicsThread;
+            Thread heartbeat = _heartbeatThread;
             _stopEvent = null;
             _frameBarrier = null;
-            _physicsThread = null;
+            _heartbeatThread = null;
             _running = false;
 
             stopEvent?.Set();
             _data.StopMovement();
-            thread?.Join(TimeSpan.FromSeconds(2));
+            heartbeat?.Join(TimeSpan.FromSeconds(2));
             barrier?.Dispose();
             stopEvent?.Dispose();
         }
 
-        private void PhysicsLoop(Barrier barrier, ManualResetEventSlim stop)
+        // Heartbeat for the no-balls path: just emit periodic snapshots so observers
+        // (and the existing test suite) see "the simulation is alive". No collisions.
+        private void HeartbeatLoop(ManualResetEventSlim stop)
         {
-            var sw = new Stopwatch();
-            long prevRaiseTicks = 0;
-            try
+            while (!stop.IsSet)
             {
-                while (!stop.IsSet)
-                {
-                    if (barrier != null)
-                    {
-                        if (!TryBarrier(barrier, stop)) break;
-                        if (!TryBarrier(barrier, stop)) break;
-                    }
-                    if (stop.IsSet) break;
-
-                    sw.Restart();
-                    lock (_collisionLock)
-                    {
-                        ApplyPhysics();
-                    }
-                    List<IBallStatus> snapshot = CreateSnapshot();
-                    long raiseTicks = Stopwatch.GetTimestamp();
-                    if (prevRaiseTicks > 0)
-                        Interlocked.Exchange(ref _lastFrameIntervalTicks, raiseTicks - prevRaiseTicks);
-                    prevRaiseTicks = raiseTicks;
-                    RaiseChanged(snapshot);
-                    sw.Stop();
-                    Interlocked.Exchange(ref _lastTickTicks, sw.ElapsedTicks);
-
-                    if (stop.Wait(PhysicsTickMs)) break;
-                }
+                if (stop.Wait(HeartbeatIntervalMs)) return;
+                EmitFrame(applyCollisions: false);
             }
-            catch (OperationCanceledException) { }
-            catch (BarrierPostPhaseException) { }
-            catch (ObjectDisposedException) { }
         }
 
-        private static bool TryBarrier(Barrier barrier, ManualResetEventSlim stop)
+        // Single frame transaction: optional collision resolution, snapshot the
+        // world, update timing counters, notify subscribers. When called from the
+        // Barrier's postPhaseAction (applyCollisions: true), all ball threads are
+        // blocked at the barrier, so it's safe to mutate ball state directly.
+        private void EmitFrame(bool applyCollisions)
         {
-            try
+            var sw = Stopwatch.StartNew();
+
+            if (applyCollisions)
             {
-                while (!stop.IsSet)
+                lock (_collisionLock)
                 {
-                    if (barrier.SignalAndWait(50)) return true;
+                    ApplyPhysics();
                 }
-                return false;
             }
-            catch (BarrierPostPhaseException) { return false; }
-            catch (ObjectDisposedException) { return false; }
+
+            List<IBallStatus> snapshot = CreateSnapshot();
+
+            long now = Stopwatch.GetTimestamp();
+            long prev = Interlocked.Exchange(ref _lastFrameTicks, now);
+            if (prev > 0)
+                Interlocked.Exchange(ref _lastFrameIntervalTicks, now - prev);
+
+            RaiseChanged(snapshot);
+
+            sw.Stop();
+            Interlocked.Exchange(ref _lastTickTicks, sw.ElapsedTicks);
         }
 
         internal void ApplyPhysics()

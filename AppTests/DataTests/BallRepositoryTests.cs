@@ -353,17 +353,15 @@ public class BallRepositoryTests
         using var api = BallDataApi.CreateApi(800, 800);
         api.GenerateBalls(100);
 
+        const int rounds = 30;
+        int roundsObserved = 0;
         int participants = api.FrameParticipants + 1;
-        using var barrier = new Barrier(participants);
+        using var barrier = new Barrier(participants, _ => roundsObserved++);
 
         api.StartMovement(barrier);
 
-        const int rounds = 30;
         for (int r = 0; r < rounds; r++)
-        {
             barrier.SignalAndWait();
-            barrier.SignalAndWait();
-        }
 
         api.StopMovement();
 
@@ -371,6 +369,7 @@ public class BallRepositoryTests
         int min = counts.Min();
         int max = counts.Max();
 
+        Assert.AreEqual(rounds, roundsObserved);
         Assert.AreEqual(rounds, min);
         Assert.AreEqual(rounds, max);
         Assert.IsLessThanOrEqualTo(1, max - min);

@@ -2,8 +2,11 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
+using System;
+using System.IO;
 using System.Linq;
 using Avalonia.Markup.Xaml;
+using Data.Diagnostics;
 using Logic;
 using Microsoft.Extensions.DependencyInjection;
 using Presentation.ViewModels;
@@ -22,7 +25,15 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<BallLogicApi>(_ => BallLogicApi.CreateApi(600, 600));
+        services.AddSingleton<BallDiagnosticsLogger>(_ =>
+        {
+            string path = Path.Combine(
+                ResolveLogDirectory(),
+                $"diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+            return BallDiagnosticsLogger.Create(path, queueCapacity: 1024);
+        });
+        services.AddSingleton<BallLogicApi>(sp =>
+            BallLogicApi.CreateApi(600, 600, sp.GetRequiredService<BallDiagnosticsLogger>()));
 
         services.AddSingleton<BoardViewModel>();
         services.AddTransient<MainWindowViewModel>();
@@ -42,6 +53,25 @@ public partial class App : Application
         }
         
         base.OnFrameworkInitializationCompleted();
+    }
+
+    // Logs land inside the repository at <repo>/logs/. We find the repo root by
+    // walking up from the executable's directory until we see the solution file.
+    // Falls back to the executable directory if the marker isn't found (e.g. when
+    // the app is published and copied elsewhere).
+    private static string ResolveLogDirectory()
+    {
+        const string solutionMarker = "ConcurrentProgramming.slnx";
+        string dir = AppContext.BaseDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (File.Exists(Path.Combine(dir, solutionMarker)))
+                return Path.Combine(dir, "logs");
+            string parent = Path.GetDirectoryName(dir);
+            if (string.IsNullOrEmpty(parent) || parent == dir) break;
+            dir = parent;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "logs");
     }
 
     private void DisableAvaloniaDataAnnotationValidation()

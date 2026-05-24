@@ -22,3 +22,6 @@
 .DS_Store
 Thumbs.db
 ehthumbs.db
+
+# Diagnostic logs
+logs/

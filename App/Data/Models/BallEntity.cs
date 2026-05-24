@@ -104,5 +104,16 @@ namespace Data.Models
         {
             get { lock (_sync) { return _stepCount; } }
         }
+
+        internal void CaptureDiagnostic(out double x, out double y, out Vector2D velocity, out int stepCount)
+        {
+            lock (_sync)
+            {
+                x = _x;
+                y = _y;
+                velocity = _velocity;
+                stepCount = _stepCount;
+            }
+        }
     }
 }

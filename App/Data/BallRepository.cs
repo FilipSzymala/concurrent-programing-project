@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using Data.Diagnostics;
 using Data.Models;
 
 namespace Data
@@ -13,18 +14,26 @@ namespace Data
         private const double MaxAbsVelocity = 2.0;
         private const int StepIntervalMs = 16;
 
+        // Throttle: each ball emits at most one diagnostic line every DiagnosticIntervalMs
+        // (set to 0 to log every step). At 100 ms we get ~10 Hz per ball — enough to see
+        // motion in the log, ~6× less I/O than logging every step at 60 fps.
+        private const int DiagnosticIntervalMs = 100;
+
         private readonly Random _random = new Random();
         private readonly int _boardWidth;
         private readonly int _boardHeight;
         private readonly List<BallEntity> _balls = new List<BallEntity>();
         private readonly object _lifecycleLock = new object();
+        private readonly BallDiagnosticsLogger _logger;
 
         private ManualResetEventSlim _stopEvent;
-        private CancellationTokenSource _cts;
         private Thread[] _threads = Array.Empty<Thread>();
         private bool _isMoving;
 
         public BallRepository(int boardWidth, int boardHeight)
+            : this(boardWidth, boardHeight, BallDiagnosticsLogger.Null) { }
+
+        public BallRepository(int boardWidth, int boardHeight, BallDiagnosticsLogger logger)
         {
             if (boardWidth <= MaxDiameter || boardHeight <= MaxDiameter)
                 throw new ArgumentOutOfRangeException(
@@ -33,6 +42,7 @@ namespace Data
 
             _boardWidth = boardWidth;
             _boardHeight = boardHeight;
+            _logger = logger ?? BallDiagnosticsLogger.Null;
         }
 
         public override int BoardWidth => _boardWidth;
@@ -86,10 +96,10 @@ namespace Data
                 if (_isMoving) return;
                 if (_balls.Count == 0) return;
 
+                _logger.Start();
                 _stopEvent = new ManualResetEventSlim(false);
-                _cts = new CancellationTokenSource();
-                CancellationToken token = _cts.Token;
                 ManualResetEventSlim stop = _stopEvent;
+                BallDiagnosticsLogger logger = _logger;
 
                 var threads = new Thread[_balls.Count];
                 for (int i = 0; i < _balls.Count; i++)
@@ -98,9 +108,9 @@ namespace Data
                     var thread = new Thread(() =>
                     {
                         if (frameBarrier != null)
-                            RunCoordinatedLoop(ball, frameBarrier, token);
+                            RunBarrierStepLoop(ball, frameBarrier, stop, logger);
                         else
-                            RunFreeLoop(ball, stop);
+                            RunIndependentStepLoop(ball, stop, logger);
                     })
                     {
                         IsBackground = true,
@@ -117,31 +127,29 @@ namespace Data
         public override void StopMovement()
         {
             ManualResetEventSlim stopEvent;
-            CancellationTokenSource cts;
             Thread[] threads;
             lock (_lifecycleLock)
             {
                 if (!_isMoving) return;
                 stopEvent = _stopEvent;
-                cts = _cts;
                 threads = _threads;
                 _stopEvent = null;
-                _cts = null;
                 _threads = Array.Empty<Thread>();
                 _isMoving = false;
             }
 
             stopEvent?.Set();
-            cts?.Cancel();
             foreach (Thread t in threads)
                 t.Join(TimeSpan.FromSeconds(2));
             stopEvent?.Dispose();
-            cts?.Dispose();
+
+            _logger.Stop();
         }
 
         public override void Dispose()
         {
             StopMovement();
+            _logger.Dispose();
         }
 
         internal void SeedBall(double x, double y, int diameter, double mass, Vector2D velocity)
@@ -166,39 +174,106 @@ namespace Data
             }
         }
 
-        private static void RunFreeLoop(BallEntity ball, ManualResetEventSlim stopEvent)
+        // Independent loop: ball moves on its own thread, no rendezvous with peers.
+        // Used when caller does not supply a frame barrier (e.g. unit tests that
+        // only need movement, or the no-collision integration path).
+        private static void RunIndependentStepLoop(BallEntity ball, ManualResetEventSlim stop, BallDiagnosticsLogger logger)
         {
             var sw = Stopwatch.StartNew();
             double lastMs = sw.Elapsed.TotalMilliseconds;
-            while (!stopEvent.IsSet)
+            double lastLogMs = double.NegativeInfinity;
+            while (!stop.IsSet)
             {
-                if (stopEvent.Wait(StepIntervalMs)) break;
+                if (stop.Wait(StepIntervalMs)) return;
                 double nowMs = sw.Elapsed.TotalMilliseconds;
                 double dtMs = nowMs - lastMs;
                 lastMs = nowMs;
                 ball.Step(dtMs);
+                if (nowMs - lastLogMs >= DiagnosticIntervalMs)
+                {
+                    EmitDiagnostic(ball, logger);
+                    lastLogMs = nowMs;
+                }
             }
         }
 
-        private static void RunCoordinatedLoop(BallEntity ball, Barrier barrier, CancellationToken token)
+        // Barrier-synchronised loop: ball performs its time-scaled step, then meets
+        // its peers at the frame barrier. When the last ball arrives, the barrier
+        // automatically invokes its postPhaseAction (collision detection + snapshot
+        // in the Logic layer) — all other ball threads are blocked here, so that
+        // action sees a frozen, consistent world. One SignalAndWait per frame.
+        private static void RunBarrierStepLoop(BallEntity ball, Barrier barrier, ManualResetEventSlim stop, BallDiagnosticsLogger logger)
         {
             var sw = Stopwatch.StartNew();
             double lastMs = sw.Elapsed.TotalMilliseconds;
+            double lastLogMs = double.NegativeInfinity;
+            while (!stop.IsSet)
+            {
+                if (stop.Wait(StepIntervalMs))
+                {
+                    LeaveBarrier(barrier);
+                    return;
+                }
+
+                double nowMs = sw.Elapsed.TotalMilliseconds;
+                double dtMs = nowMs - lastMs;
+                lastMs = nowMs;
+                ball.Step(dtMs);
+                if (nowMs - lastLogMs >= DiagnosticIntervalMs)
+                {
+                    EmitDiagnostic(ball, logger);
+                    lastLogMs = nowMs;
+                }
+
+                if (stop.IsSet)
+                {
+                    LeaveBarrier(barrier);
+                    return;
+                }
+
+                if (!TryRendezvous(barrier))
+                    return;
+            }
+        }
+
+        // Single shutdown-exception sink. SignalAndWait can fail in three ways once
+        // we begin tearing the simulation down — barrier disposed, post-phase action
+        // observed an inconsistent state, or another thread already removed itself.
+        // All three mean the same thing here: we're stopping; exit the loop quietly.
+        private static bool TryRendezvous(Barrier barrier)
+        {
             try
             {
-                while (!token.IsCancellationRequested)
-                {
-                    barrier.SignalAndWait(token);
-                    double nowMs = sw.Elapsed.TotalMilliseconds;
-                    double dtMs = nowMs - lastMs;
-                    lastMs = nowMs;
-                    ball.Step(dtMs);
-                    barrier.SignalAndWait(token);
-                }
+                barrier.SignalAndWait();
+                return true;
             }
-            catch (OperationCanceledException) { }
-            catch (BarrierPostPhaseException) { }
-            catch (ObjectDisposedException) { }
+            catch (BarrierPostPhaseException) { return false; }
+            catch (ObjectDisposedException)   { return false; }   // ObjectDisposedException inherits from InvalidOperationException — keep it first.
+            catch (InvalidOperationException) { return false; }
+        }
+
+        // Called once per ball thread on shutdown so peers still waiting at the
+        // barrier are released without waiting for a participant that won't arrive.
+        private static void LeaveBarrier(Barrier barrier)
+        {
+            try
+            {
+                barrier.RemoveParticipant();
+            }
+            catch (ObjectDisposedException)   { /* barrier disposed by Stop()      */ }
+            catch (InvalidOperationException) { /* already removed / barrier done */ }
+        }
+
+        private static void EmitDiagnostic(BallEntity ball, BallDiagnosticsLogger logger)
+        {
+            if (logger == null) return;
+            ball.CaptureDiagnostic(out double x, out double y, out Vector2D velocity, out int stepCount);
+            logger.Log(new BallDiagnosticEntry(
+                timestampTicks: Stopwatch.GetTimestamp(),
+                ballId: ball.Id,
+                x: x, y: y,
+                velocityX: velocity.X, velocityY: velocity.Y,
+                stepCount: stepCount));
         }
 
         private double NextNonZeroVelocity()

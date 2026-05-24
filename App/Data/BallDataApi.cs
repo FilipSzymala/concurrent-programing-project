@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Data.Diagnostics;
 
 namespace Data
 {
@@ -17,6 +18,9 @@ namespace Data
         public abstract void Dispose();
 
         public static BallDataApi CreateApi(int boardWidth, int boardHeight) =>
-            new BallRepository(boardWidth, boardHeight);
+            new BallRepository(boardWidth, boardHeight, BallDiagnosticsLogger.Null);
+
+        public static BallDataApi CreateApi(int boardWidth, int boardHeight, BallDiagnosticsLogger logger) =>
+            new BallRepository(boardWidth, boardHeight, logger ?? BallDiagnosticsLogger.Null);
     }
 }

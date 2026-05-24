@@ -27,5 +27,7 @@ namespace Logic
         public static BallLogicApi CreateApi(BallDataApi data) => new BallsService(data);
         public static BallLogicApi CreateApi(int boardWidth, int boardHeight) =>
             new BallsService(BallDataApi.CreateApi(boardWidth, boardHeight));
+        public static BallLogicApi CreateApi(int boardWidth, int boardHeight, Data.Diagnostics.BallDiagnosticsLogger logger) =>
+            new BallsService(BallDataApi.CreateApi(boardWidth, boardHeight, logger));
     }
 }

@@ -55,10 +55,6 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    // Logs land inside the repository at <repo>/logs/. We find the repo root by
-    // walking up from the executable's directory until we see the solution file.
-    // Falls back to the executable directory if the marker isn't found (e.g. when
-    // the app is published and copied elsewhere).
     private static string ResolveLogDirectory()
     {
         const string solutionMarker = "ConcurrentProgramming.slnx";

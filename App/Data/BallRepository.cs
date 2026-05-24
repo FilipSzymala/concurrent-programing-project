@@ -13,10 +13,6 @@ namespace Data
         private const int MaxDiameter = 70;
         private const double MaxAbsVelocity = 2.0;
         private const int StepIntervalMs = 16;
-
-        // Throttle: each ball emits at most one diagnostic line every DiagnosticIntervalMs
-        // (set to 0 to log every step). At 100 ms we get ~10 Hz per ball — enough to see
-        // motion in the log, ~6× less I/O than logging every step at 60 fps.
         private const int DiagnosticIntervalMs = 100;
 
         private readonly Random _random = new Random();
@@ -174,9 +170,6 @@ namespace Data
             }
         }
 
-        // Independent loop: ball moves on its own thread, no rendezvous with peers.
-        // Used when caller does not supply a frame barrier (e.g. unit tests that
-        // only need movement, or the no-collision integration path).
         private static void RunIndependentStepLoop(BallEntity ball, ManualResetEventSlim stop, BallDiagnosticsLogger logger)
         {
             var sw = Stopwatch.StartNew();
@@ -197,11 +190,6 @@ namespace Data
             }
         }
 
-        // Barrier-synchronised loop: ball performs its time-scaled step, then meets
-        // its peers at the frame barrier. When the last ball arrives, the barrier
-        // automatically invokes its postPhaseAction (collision detection + snapshot
-        // in the Logic layer) — all other ball threads are blocked here, so that
-        // action sees a frozen, consistent world. One SignalAndWait per frame.
         private static void RunBarrierStepLoop(BallEntity ball, Barrier barrier, ManualResetEventSlim stop, BallDiagnosticsLogger logger)
         {
             var sw = Stopwatch.StartNew();
@@ -236,10 +224,6 @@ namespace Data
             }
         }
 
-        // Single shutdown-exception sink. SignalAndWait can fail in three ways once
-        // we begin tearing the simulation down — barrier disposed, post-phase action
-        // observed an inconsistent state, or another thread already removed itself.
-        // All three mean the same thing here: we're stopping; exit the loop quietly.
         private static bool TryRendezvous(Barrier barrier)
         {
             try
@@ -248,20 +232,18 @@ namespace Data
                 return true;
             }
             catch (BarrierPostPhaseException) { return false; }
-            catch (ObjectDisposedException)   { return false; }   // ObjectDisposedException inherits from InvalidOperationException — keep it first.
+            catch (ObjectDisposedException)   { return false; }
             catch (InvalidOperationException) { return false; }
         }
 
-        // Called once per ball thread on shutdown so peers still waiting at the
-        // barrier are released without waiting for a participant that won't arrive.
         private static void LeaveBarrier(Barrier barrier)
         {
             try
             {
                 barrier.RemoveParticipant();
             }
-            catch (ObjectDisposedException)   { /* barrier disposed by Stop()      */ }
-            catch (InvalidOperationException) { /* already removed / barrier done */ }
+            catch (ObjectDisposedException)   { }
+            catch (InvalidOperationException) { }
         }
 
         private static void EmitDiagnostic(BallEntity ball, BallDiagnosticsLogger logger)

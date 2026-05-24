@@ -110,12 +110,6 @@ namespace Logic
             _data.Dispose();
         }
 
-        // Two execution modes:
-        //   - N > 0 balls: build a Barrier(N, OnFrameRendezvous). Each ball signals
-        //     once per frame; when the last arrives, OnFrameRendezvous runs in that
-        //     thread while the others are blocked → physics happens lock-free.
-        //   - N == 0 (test/empty fake data): no barrier, run a heartbeat thread so
-        //     BallsChanged is still raised on a timer for subscribers.
         private void StartUnlocked()
         {
             _lastFrameTicks = 0;
@@ -163,8 +157,6 @@ namespace Logic
             stopEvent?.Dispose();
         }
 
-        // Heartbeat for the no-balls path: just emit periodic snapshots so observers
-        // (and the existing test suite) see "the simulation is alive". No collisions.
         private void HeartbeatLoop(ManualResetEventSlim stop)
         {
             while (!stop.IsSet)
@@ -174,10 +166,6 @@ namespace Logic
             }
         }
 
-        // Single frame transaction: optional collision resolution, snapshot the
-        // world, update timing counters, notify subscribers. When called from the
-        // Barrier's postPhaseAction (applyCollisions: true), all ball threads are
-        // blocked at the barrier, so it's safe to mutate ball state directly.
         private void EmitFrame(bool applyCollisions)
         {
             var sw = Stopwatch.StartNew();

@@ -14,6 +14,7 @@ namespace Logic
         private readonly BallDataApi _data;
         private readonly object _lifecycleLock = new object();
         private readonly object _collisionLock = new object();
+        private readonly object _dragLock = new object();
 
         private ManualResetEventSlim _stopEvent;
         private Barrier _frameBarrier;
@@ -22,6 +23,12 @@ namespace Logic
         private long _lastFrameTicks;
         private long _lastTickTicks;
         private long _lastFrameIntervalTicks;
+
+        private int _draggedBallId = -1;
+        private double _dragTargetX;
+        private double _dragTargetY;
+        private double _prevDragX;
+        private double _prevDragY;
 
         public BallsService(BallDataApi data)
         {
@@ -99,6 +106,40 @@ namespace Logic
 
             if (snapshot != null)
                 RaiseChanged(snapshot);
+        }
+
+        public override void DragBall(int ballId, double x, double y)
+        {
+            bool isNewDrag;
+            lock (_dragLock)
+            {
+                isNewDrag = _draggedBallId != ballId;
+                _draggedBallId = ballId;
+                _dragTargetX = x;
+                _dragTargetY = y;
+                if (isNewDrag)           // initialise prev so first frame has zero delta
+                {
+                    _prevDragX = x;
+                    _prevDragY = y;
+                }
+            }
+            if (isNewDrag)
+            {
+                IBallData ball = FindBall(_data.Balls, ballId);
+                ball?.SetVelocity(new Vector2D(0, 0));
+            }
+        }
+
+        public override void StopDragging(int ballId)
+        {
+            IBallData ball;
+            lock (_dragLock)
+            {
+                if (_draggedBallId != ballId) return;
+                _draggedBallId = -1;
+                ball = FindBall(_data.Balls, ballId);
+            }
+            ball?.SetVelocity(new Vector2D(0, 0));
         }
 
         public override void Dispose()
@@ -196,12 +237,107 @@ namespace Logic
             IReadOnlyList<IBallData> balls = _data.Balls;
             int n = balls.Count;
 
-            for (int i = 0; i < n; i++)
-                CollisionResolver.ResolveWalls(balls[i], _data.BoardWidth, _data.BoardHeight);
+            int draggedId;
+            double dragX, dragY, effVX, effVY;
+            lock (_dragLock)
+            {
+                draggedId = _draggedBallId;
+                dragX = _dragTargetX;
+                dragY = _dragTargetY;
 
+                // Cursor displacement since last physics frame = effective velocity.
+                effVX = dragX - _prevDragX;
+                effVY = dragY - _prevDragY;
+                _prevDragX = dragX;
+                _prevDragY = dragY;
+            }
+
+            // Clamp so the effective velocity stays within physics limits.
+            const double MaxDragSpeed = 8.0;
+            double spd = Math.Sqrt(effVX * effVX + effVY * effVY);
+            if (spd > MaxDragSpeed)
+            {
+                effVX = effVX / spd * MaxDragSpeed;
+                effVY = effVY / spd * MaxDragSpeed;
+            }
+
+            // Place dragged ball at cursor WITH cursor velocity so ball-ball impulse is realistic.
+            if (draggedId >= 0)
+                OverrideDraggedBall(balls, n, draggedId, dragX, dragY,
+                    new Vector2D(effVX, effVY));
+
+            // Wall collisions -  first pass, skip dragged ball.
+            for (int i = 0; i < n; i++)
+                if (balls[i].Id != draggedId)
+                    CollisionResolver.ResolveWalls(balls[i], _data.BoardWidth, _data.BoardHeight);
+
+            // Ball-ball collisions - include dragged ball so it bounces others.
             for (int i = 0; i < n; i++)
                 for (int j = i + 1; j < n; j++)
                     CollisionResolver.ResolveBallCollision(balls[i], balls[j]);
+
+            // Wall collisions - second pass catches balls pushed out by ball-ball.
+            for (int i = 0; i < n; i++)
+                if (balls[i].Id != draggedId)
+                    CollisionResolver.ResolveWalls(balls[i], _data.BoardWidth, _data.BoardHeight);
+
+            // Hard positional clamp: ResolveWalls only flips velocity, not position.
+            // A ball squeezed into a corner by the dragged ball can end up with corrected
+            // velocity but still outside bounds. This guarantees it stays inside the board.
+            ClampAllToBounds(balls, n, draggedId);
+
+            // Pin dragged ball back to cursor with zero velocity (user holds it).
+            if (draggedId >= 0)
+                OverrideDraggedBall(balls, n, draggedId, dragX, dragY, new Vector2D(0, 0));
+        }
+
+        private void ClampAllToBounds(IReadOnlyList<IBallData> balls, int n, int draggedId)
+        {
+            int w = _data.BoardWidth;
+            int h = _data.BoardHeight;
+            for (int i = 0; i < n; i++)
+            {
+                if (balls[i].Id == draggedId) continue;
+                BallSnapshot s = balls[i].Snapshot;
+                double maxX = w - balls[i].Diameter;
+                double maxY = h - balls[i].Diameter;
+                double cx = s.X < 0 ? 0 : s.X > maxX ? maxX : s.X;
+                double cy = s.Y < 0 ? 0 : s.Y > maxY ? maxY : s.Y;
+                if (Math.Abs(cx - s.X) < 1e-9 && Math.Abs(cy - s.Y) < 1e-9) continue;
+
+                // Flip velocity components that point into the clamped wall so the
+                // ball moves away from it on the next Step - same logic as ResolveWalls.
+                double vx = s.Velocity.X;
+                double vy = s.Velocity.Y;
+                if (cx <= 0    && vx < 0) vx = -vx;
+                if (cx >= maxX && vx > 0) vx = -vx;
+                if (cy <= 0    && vy < 0) vy = -vy;
+                if (cy >= maxY && vy > 0) vy = -vy;
+                balls[i].ApplyChange(cx, cy, new Vector2D(vx, vy));
+            }
+        }
+
+        private void OverrideDraggedBall(
+            IReadOnlyList<IBallData> balls, int n, int draggedId, double x, double y,
+            Vector2D velocity)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (balls[i].Id != draggedId) continue;
+                double maxX = _data.BoardWidth  - balls[i].Diameter;
+                double maxY = _data.BoardHeight - balls[i].Diameter;
+                double cx = x < 0 ? 0 : x > maxX ? maxX : x;
+                double cy = y < 0 ? 0 : y > maxY ? maxY : y;
+                balls[i].ApplyChange(cx, cy, velocity);
+                break;
+            }
+        }
+
+        private static IBallData FindBall(IReadOnlyList<IBallData> balls, int id)
+        {
+            for (int i = 0; i < balls.Count; i++)
+                if (balls[i].Id == id) return balls[i];
+            return null;
         }
 
         private List<IBallStatus> CreateSnapshot()

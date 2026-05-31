@@ -9,7 +9,7 @@
         x:Class="Presentation.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="Concurrent Programming — Stage 2"
+        Title="Concurrent Programming — Stage 3"
         Width="1240"
         Height="800"
         MinWidth="960"
@@ -76,7 +76,7 @@
                 <StackPanel Orientation="Vertical" VerticalAlignment="Center" Spacing="2">
                     <TextBlock Text="Concurrent Programming"
                                Foreground="#F0F6FC" FontSize="20" FontWeight="SemiBold" />
-                    <TextBlock Text="Stage 2 — Elastic ball collisions"
+                    <TextBlock Text="Stage 3 — Real-time concurrent physics"
                                Foreground="#8B949E" FontSize="12" />
                 </StackPanel>
             </StackPanel>

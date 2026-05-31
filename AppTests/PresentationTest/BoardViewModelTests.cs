@@ -298,6 +298,8 @@ public sealed class BoardViewModelTests
 
         public override void Stop() => StopCalls++;
         public override void Resume() => ResumeCalls++;
+        public override void DragBall(int ballId, double x, double y) { }
+        public override void StopDragging(int ballId) { }
         public override void Toggle() => ToggleCalls++;
         public override void Dispose() { }
 

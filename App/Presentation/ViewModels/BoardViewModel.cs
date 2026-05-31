@@ -39,6 +39,7 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
     private IBrush _fpsBrush = GreenBrush;
     private string _simulationToggleLabel = "Resume";
     private int _lastBallsCount;
+    private int _draggedBallId = -1;
 
     public ObservableCollection<BallListItem> Balls { get; } = new();
 
@@ -349,6 +350,25 @@ public partial class BoardViewModel : ViewModelBase, IDisposable
         }) { IsBackground = true };
         thread.Start();
         return tcs.Task;
+    }
+
+    public void StartDrag(int ballId, double logicX, double logicY)
+    {
+        _draggedBallId = ballId;
+        _logic.DragBall(ballId, logicX, logicY);
+    }
+
+    public void UpdateDrag(double logicX, double logicY)
+    {
+        if (_draggedBallId < 0) return;
+        _logic.DragBall(_draggedBallId, logicX, logicY);
+    }
+
+    public void StopDrag()
+    {
+        int id = _draggedBallId;
+        _draggedBallId = -1;
+        if (id >= 0) _logic.StopDragging(id);
     }
 
     public void Dispose()

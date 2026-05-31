@@ -21,6 +21,8 @@ namespace Logic
         public abstract void Start(int ballsCount);
         public abstract void Stop();
         public abstract void Resume();
+        public abstract void DragBall(int ballId, double x, double y);
+        public abstract void StopDragging(int ballId);
         public abstract void Toggle();
         public abstract void Dispose();
 

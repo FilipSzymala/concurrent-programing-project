@@ -9,11 +9,15 @@
 	xmlns:ia="clr-namespace:Avalonia.Xaml.Interactions.Core;assembly=Avalonia.Xaml.Interactions"
 	x:DataType="vm:BoardViewModel">
 
-	<Grid helpers:SizeObserver.Observe="True">
+	<Grid helpers:SizeObserver.Observe="True"
+	      PointerPressed="OnPointerPressed"
+	      PointerMoved="OnPointerMoved"
+	      PointerReleased="OnPointerReleased">
 		<Border BorderBrush="#30363D" BorderThickness="1" Background="#F6F8FA"
 		        ClipToBounds="True"
 		        HorizontalAlignment="Center" VerticalAlignment="Center">
-			<ItemsControl ItemsSource="{Binding Balls}"
+			<ItemsControl Name="PART_Board"
+			              ItemsSource="{Binding Balls}"
 			              Width="{Binding ScaledBoardWidth}"
 			              Height="{Binding ScaledBoardHeight}"
 			              ClipToBounds="True">

@@ -48,7 +48,7 @@ public sealed class BallDiagnosticsLoggerTests
 
             string[] lines = File.ReadAllLines(path);
             Assert.IsGreaterThanOrEqualTo(11, lines.Length);
-            Assert.IsTrue(lines[0].StartsWith("#"));
+            StringAssert.StartsWith(lines[0], "#");
             for (int i = 1; i < lines.Length; i++)
                 StringAssert.Contains(lines[i], ";");
             Assert.AreEqual(10L, logger.WrittenCount);
@@ -130,7 +130,7 @@ public sealed class BallDiagnosticsLoggerTests
 
             Assert.AreEqual(count, (int)logger.WrittenCount);
             string[] lines = File.ReadAllLines(path);
-            Assert.AreEqual(count + 1, lines.Length);
+            Assert.HasCount(count + 1, lines);
         }
         finally
         {

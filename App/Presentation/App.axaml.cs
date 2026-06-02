@@ -63,7 +63,7 @@ public partial class App : Application
         {
             if (File.Exists(Path.Combine(dir, solutionMarker)))
                 return Path.Combine(dir, "logs");
-            string parent = Path.GetDirectoryName(dir);
+            string? parent = Path.GetDirectoryName(dir);
             if (string.IsNullOrEmpty(parent) || parent == dir) break;
             dir = parent;
         }

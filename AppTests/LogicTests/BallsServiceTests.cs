@@ -270,7 +270,7 @@ public sealed class BallsServiceTests
                 _balls.Add(new FakeBall(i, 10, 2.0));
         }
 
-        public override void StartMovement(System.Threading.Barrier frameBarrier = null) => MovementStarted = true;
+        public override void StartMovement(System.Threading.Barrier? frameBarrier = null) => MovementStarted = true;
         public override void StopMovement() => MovementStopped = true;
         public override void Dispose() { }
     }

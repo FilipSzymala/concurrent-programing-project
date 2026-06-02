@@ -29,6 +29,8 @@ namespace Logic
         private double _dragTargetY;
         private double _prevDragX;
         private double _prevDragY;
+        private double _lastEffVX;
+        private double _lastEffVY;
 
         public BallsService(BallDataApi data)
         {
@@ -117,10 +119,12 @@ namespace Logic
                 _draggedBallId = ballId;
                 _dragTargetX = x;
                 _dragTargetY = y;
-                if (isNewDrag)           // initialise prev so first frame has zero delta
+                if (isNewDrag)
                 {
                     _prevDragX = x;
                     _prevDragY = y;
+                    _lastEffVX = 0;
+                    _lastEffVY = 0;
                 }
             }
             if (isNewDrag)
@@ -133,13 +137,30 @@ namespace Logic
         public override void StopDragging(int ballId)
         {
             IBallData ball;
+            double vx, vy;
             lock (_dragLock)
             {
                 if (_draggedBallId != ballId) return;
+                vx = _dragTargetX - _prevDragX;
+                vy = _dragTargetY - _prevDragY;
+                if (vx == 0 && vy == 0)
+                {
+                    vx = _lastEffVX;
+                    vy = _lastEffVY;
+                }
                 _draggedBallId = -1;
                 ball = FindBall(_data.Balls, ballId);
             }
-            ball?.SetVelocity(new Vector2D(0, 0));
+
+            const double MaxDragSpeed = 6.0;
+            double spd = Math.Sqrt(vx * vx + vy * vy);
+            if (spd > MaxDragSpeed)
+            {
+                vx = vx / spd * MaxDragSpeed;
+                vy = vy / spd * MaxDragSpeed;
+            }
+
+            ball?.SetVelocity(new Vector2D(vx, vy));
         }
 
         public override void Dispose()
@@ -245,15 +266,15 @@ namespace Logic
                 dragX = _dragTargetX;
                 dragY = _dragTargetY;
 
-                // Cursor displacement since last physics frame = effective velocity.
                 effVX = dragX - _prevDragX;
                 effVY = dragY - _prevDragY;
                 _prevDragX = dragX;
                 _prevDragY = dragY;
+                _lastEffVX = effVX;
+                _lastEffVY = effVY;
             }
 
-            // Clamp so the effective velocity stays within physics limits.
-            const double MaxDragSpeed = 8.0;
+            const double MaxDragSpeed = 6.0;
             double spd = Math.Sqrt(effVX * effVX + effVY * effVY);
             if (spd > MaxDragSpeed)
             {
@@ -261,32 +282,24 @@ namespace Logic
                 effVY = effVY / spd * MaxDragSpeed;
             }
 
-            // Place dragged ball at cursor WITH cursor velocity so ball-ball impulse is realistic.
             if (draggedId >= 0)
                 OverrideDraggedBall(balls, n, draggedId, dragX, dragY,
                     new Vector2D(effVX, effVY));
 
-            // Wall collisions -  first pass, skip dragged ball.
             for (int i = 0; i < n; i++)
                 if (balls[i].Id != draggedId)
                     CollisionResolver.ResolveWalls(balls[i], _data.BoardWidth, _data.BoardHeight);
 
-            // Ball-ball collisions - include dragged ball so it bounces others.
             for (int i = 0; i < n; i++)
                 for (int j = i + 1; j < n; j++)
                     CollisionResolver.ResolveBallCollision(balls[i], balls[j]);
 
-            // Wall collisions - second pass catches balls pushed out by ball-ball.
             for (int i = 0; i < n; i++)
                 if (balls[i].Id != draggedId)
                     CollisionResolver.ResolveWalls(balls[i], _data.BoardWidth, _data.BoardHeight);
 
-            // Hard positional clamp: ResolveWalls only flips velocity, not position.
-            // A ball squeezed into a corner by the dragged ball can end up with corrected
-            // velocity but still outside bounds. This guarantees it stays inside the board.
             ClampAllToBounds(balls, n, draggedId);
 
-            // Pin dragged ball back to cursor with zero velocity (user holds it).
             if (draggedId >= 0)
                 OverrideDraggedBall(balls, n, draggedId, dragX, dragY, new Vector2D(0, 0));
         }
@@ -305,8 +318,6 @@ namespace Logic
                 double cy = s.Y < 0 ? 0 : s.Y > maxY ? maxY : s.Y;
                 if (Math.Abs(cx - s.X) < 1e-9 && Math.Abs(cy - s.Y) < 1e-9) continue;
 
-                // Flip velocity components that point into the clamped wall so the
-                // ball moves away from it on the next Step - same logic as ResolveWalls.
                 double vx = s.Velocity.X;
                 double vy = s.Velocity.Y;
                 if (cx <= 0    && vx < 0) vx = -vx;
